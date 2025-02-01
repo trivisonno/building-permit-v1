@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Building Permits Viewer</title>
+    <title>🛠️ Building Permits Viewer</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons/font/bootstrap-icons.css">
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
@@ -15,104 +15,328 @@
             transform: translate(-50%, -50%);
             text-align: center;
         }
+
+
+        .query-summary {
+            padding-top: 40px;
+        }
+
         .content-container {
-            padding-top: 80px;
+            padding-top: 0px;
+        }
+        #overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            opacity: 0;
+            visibility: hidden;
+            transition: opacity 0.15s ease-in-out, visibility 0.15s ease-in-out;
+            z-index: 10;
         }
     </style>
     <script>
-        async function fetchData(filterCategory = "", filterNeighborhood = "", filterSubtype = "") {
+        let currentPage = 0;
+        const recordsPerPage = 50;
+        let allRecords = [];
+        let loading = false;
+        let lastSearchQuery = ""; // Stores the last executed query
+        let noMoreResults = false; // Flag to prevent further unnecessary fetches
+
+
+        async function fetchData(append = false) {
+            if (loading || (noMoreResults && append)) return;
+            loading = true;
+
+            const filterCategory = document.getElementById("categoryFilter").value;
+            const filterNeighborhood = document.getElementById("neighborhoodFilter").value;
+            const filterSubtype = document.getElementById("subtypeFilter").value;
+            const searchQuery = document.getElementById("searchInput").value.trim().replace(/\s+/g, "%");
+            const addressQuery = document.getElementById("addressSearchInput").value.trim().replace(/\s+/g, "%");
+
+            // Show the bottom spinner when appending more data
+            if (append) {
+                document.getElementById("bottomLoadingSpinner").style.display = "block";
+            }
+
+            // Create a search query string to check if anything has changed
+            const currentSearchQuery = JSON.stringify({
+                filterCategory, filterNeighborhood, filterSubtype, searchQuery, addressQuery
+            });
+
+            // Stop further fetches if the query is the same and appending data
+            if (append && currentSearchQuery === lastSearchQuery) {
+                loading = false;
+                // Hide the bottom spinner after fetching
+                document.getElementById("bottomLoadingSpinner").style.display = "none";
+                document.getElementById("noMoreResults").style.display = "block";
+                return;
+            }
+
+            lastSearchQuery = currentSearchQuery; // Store the current query for comparison
+            noMoreResults = false; // Reset "no more results" flag for new searches
+
+            document.getElementById("bottomLoadingSpinner").style.display = "block";
+
+            if (!append) {
+                currentPage = 0;
+                allRecords = [];
+                document.getElementById("noMoreResults").style.display = "none";
+                document.getElementById("dataContainer").innerHTML = "";
+            }
+
+            updateQuerySummary(); // Update search summary
+
             const url = "https://services3.arcgis.com/dty2kHktVXHrqO8i/arcgis/rest/services/Building_Permits/FeatureServer/0/query";
             let whereClauses = ["1=1"];
             
             if (filterCategory) whereClauses.push(`PERMIT_CATEGORY='${filterCategory.replace(/'/g, "''")}'`);
             if (filterNeighborhood) whereClauses.push(`DW_Neighborhood='${filterNeighborhood.replace(/'/g, "''")}'`);
             if (filterSubtype) whereClauses.push(`PERMIT_SUBTYPE='${filterSubtype.replace(/'/g, "''")}'`);
+            if (searchQuery) whereClauses.push(`WORK_DESCRIPTION LIKE '%${searchQuery.replace(/'/g, "''" )}%'`);
+            if (addressQuery) whereClauses.push(`PRIMARY_ADDRESS LIKE '%${addressQuery.replace(/'/g, "''")}%'`);
+            
             
             const params = new URLSearchParams({
                 where: whereClauses.join(" AND "),
                 outFields: "PERMIT_ID,PRIMARY_ADDRESS,PERMIT_SUBTYPE,PERMIT_CATEGORY,WORK_DESCRIPTION,CONTRACTOR,JOB_VALUE,FILE_DATE,PARCEL_NUMBER,WARD,DW_Neighborhood",
                 orderByFields: "FILE_DATE DESC",
-                resultRecordCount: "500",
+                resultOffset: currentPage * recordsPerPage,
+                resultRecordCount: recordsPerPage,
                 f: "json"
             });
             
             const response = await fetch(`${url}?${params}`);
             const data = await response.json();
-            return data.features.map(f => f.attributes);
-        }
 
-        async function updateView() {
-            const filterCategory = document.getElementById("categoryFilter").value;
-            const filterNeighborhood = document.getElementById("neighborhoodFilter").value;
-            const filterSubtype = document.getElementById("subtypeFilter").value;
-            const container = document.getElementById("dataContainer");
-            const spinner = document.getElementById("loadingSpinner");
-            
-            container.innerHTML = "";
-            spinner.style.display = "block";
-            
-            const records = await fetchData(filterCategory, filterNeighborhood, filterSubtype);
-            spinner.style.display = "none";
-            
-            if (records.length > 0) {
-                records.forEach(record => {
-                    let addressCleaned = record.PRIMARY_ADDRESS.replace(/,? CLEVELAND,? OH,? \d{5}/i, "");
-                    let formattedJobValue = record.JOB_VALUE ? `$${Math.round(record.JOB_VALUE).toLocaleString()}` : "N/A";
-                    container.innerHTML += `
-                        <div class="card mb-3 p-2">
-                            <p class="card-text">
-                                <a href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(record.PRIMARY_ADDRESS)}" target="_blank">${addressCleaned}</a> (${record.DW_Neighborhood || 'N/A'}, Ward ${record.WARD || 'N/A'})
-                            </p>
-                            <h5 class="card-title">${record.WORK_DESCRIPTION || 'No description'}</h5>
-                            <p class="card-text">${formattedJobValue} | ${record.CONTRACTOR || 'N/A'}</p>
-                            <small class="text-muted">Permit: ${record.PERMIT_ID || 'N/A'} | Filed: ${formatDate(record.FILE_DATE)}</small>
-                        </div>`;
-                });
+            // Hide the bottom spinner after fetching
+            document.getElementById("bottomLoadingSpinner").style.display = "none";
+
+            if (data.features.length === 0) {
+                document.getElementById("noMoreResults").style.display = "block";
+                noMoreResults = true; // Prevent further fetching
+                loading = false;
+                return;
             }
+
+            allRecords = append ? allRecords.concat(data.features.map(f => f.attributes)) : data.features.map(f => f.attributes);
+
+            displayRecords();
+            loading = false;
         }
 
-        function formatDate(dateString) {
-            const date = new Date(dateString);
-            return date.toLocaleDateString();
+        function displayRecords() {
+            const container = document.getElementById("dataContainer");
+            container.innerHTML = "";
+            allRecords.forEach(record => {
+                let addressCleaned = record.PRIMARY_ADDRESS.replace(/,? CLEVELAND,? OH,? \d{5}/i, "");
+                let formattedJobValue = record.JOB_VALUE ? `$${Math.round(record.JOB_VALUE).toLocaleString()}` : "N/A";
+                container.innerHTML += `
+                    <div class="card mb-3 p-2">
+                        <h5 class="card-title">${record.WORK_DESCRIPTION || 'No description'}</h5>
+                        <p class="card-text">
+                            <a href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(record.PRIMARY_ADDRESS)}" target="_blank">${addressCleaned}</a> (${record.DW_Neighborhood || 'N/A'}, Ward ${record.WARD || 'N/A'})
+                        </p>
+                        <p class="card-text">${formattedJobValue} | ${record.CONTRACTOR || 'N/A'}</p>
+                        <small class="text-muted">Permit ${record.PERMIT_ID || 'N/A'} | Filed ${new Date(record.FILE_DATE).toLocaleDateString()}</small>
+                    </div>`;
+            });
         }
 
-        async function populateSelectBoxes() {
-            const records = await fetchData();
-            const categories = [...new Set(records.map(record => record.PERMIT_CATEGORY))];
-            const neighborhoods = [...new Set(records.map(record => record.DW_Neighborhood))];
-            const subtypes = [...new Set(records.map(record => record.PERMIT_SUBTYPE))];
-            
-            document.getElementById("categoryFilter").innerHTML = `<option value="">All Categories</option>` + categories.map(c => `<option value="${c}">${c}</option>`).join("");
-            document.getElementById("neighborhoodFilter").innerHTML = `<option value="">All Neighborhoods</option>` + neighborhoods.map(n => `<option value="${n}">${n}</option>`).join("");
-            document.getElementById("subtypeFilter").innerHTML = `<option value="">All Types</option>` + subtypes.map(s => `<option value="${s}">${s}</option>`).join("");
+        let scrollTimeout;
+
+        function handleScroll() {
+            if (noMoreResults) return; // Stop fetching if no more results exist
+            if (scrollTimeout) {
+                clearTimeout(scrollTimeout);
+            }
+            scrollTimeout = setTimeout(() => {
+                if ((window.innerHeight + window.scrollY) >= document.body.offsetHeight - 100) {
+                    currentPage++;
+                    fetchData(true);
+                }
+            }, 200); // Adjust debounce time as needed
         }
+
+        function resetAndFetchData() {
+            currentPage = 0; // Reset pagination
+        }
+
+        function searchAndCloseNav() {
+            fetchData(); // Run the search query
+
+            // Close the navbar
+            let filterMenu = document.getElementById("filterMenu");
+            let navbar = new bootstrap.Collapse(filterMenu);
+            navbar.hide();
+        }
+
+        function clearFilters() {
+            // Reset all inputs and selects
+            document.getElementById("searchInput").value = "";
+            document.getElementById("addressSearchInput").value = "";
+            document.getElementById("categoryFilter").selectedIndex = 0;
+            document.getElementById("neighborhoodFilter").selectedIndex = 0;
+            document.getElementById("subtypeFilter").selectedIndex = 0;
+
+            // Reset pagination and fetch fresh data
+            currentPage = 0;
+            fetchData();
+        }
+
+        function updateQuerySummary() {
+            const filters = [];
+
+            const category = document.getElementById("categoryFilter").value;
+            const neighborhood = document.getElementById("neighborhoodFilter").value;
+            const subtype = document.getElementById("subtypeFilter").value;
+            const searchQuery = document.getElementById("searchInput").value.trim();
+            const addressQuery = document.getElementById("addressSearchInput").value.trim();
+
+            if (category) filters.push(`Category: ${category}`);
+            if (neighborhood) filters.push(`Neighborhood: ${neighborhood}`);
+            if (subtype) filters.push(`Type: ${subtype}`);
+            if (searchQuery) filters.push(`Work: "${searchQuery}"`);
+            if (addressQuery) filters.push(`Address: "${addressQuery}"`);
+
+            const summaryText = filters.length ? `<i class="bi bi-search"></i> ${filters.join(", ")}` : "";
+
+            document.getElementById("querySummary").innerHTML = summaryText;
+        }
+
+        document.addEventListener("DOMContentLoaded", function () {
+            const filterMenu = document.getElementById("filterMenu");
+            const overlay = document.getElementById("overlay");
+
+            // Function to show overlay with fade-in effect
+            function showOverlay() {
+                overlay.style.visibility = "visible";
+                overlay.style.opacity = "1";
+            }
+
+            // Function to hide overlay with fade-out effect
+            function hideOverlay() {
+                overlay.style.opacity = "0";
+                setTimeout(() => {
+                    overlay.style.visibility = "hidden";
+                }, 200); // Matches the CSS transition duration
+            }
+
+            // Show overlay when navbar is opened
+            filterMenu.addEventListener("shown.bs.collapse", showOverlay);
+
+            // Hide overlay when navbar is closed
+            filterMenu.addEventListener("hidden.bs.collapse", hideOverlay);
+
+            overlay.addEventListener("click", function () {
+                let navbar = new bootstrap.Collapse(filterMenu);
+                navbar.hide();
+            });
+
+            // Function to trigger search when Enter is pressed
+            function handleEnterKey(event) {
+                if (event.key === "Enter") {
+                    event.preventDefault(); // Prevent form submission
+                    searchButton.click(); // Trigger search button click
+                }
+            }
+
+            let searchButton = document.querySelector(".btn-primary"); // Select the search button
+            // Add event listener to all input fields inside the navbar
+            document.querySelectorAll("#filterMenu input, #filterMenu select").forEach(element => {
+                element.addEventListener("keypress", handleEnterKey);
+            });
+        });
         
-        window.onload = async function () {
-            await populateSelectBoxes();
-            await updateView();
+        window.onload = function () {
+            fetchData();
+            window.addEventListener("scroll", handleScroll);
         };
     </script>
 </head>
 <body class="container mt-4">
-    <nav class="navbar navbar-expand-lg navbar-light bg-light fixed-top">
+    <div id="overlay"></div>
+    <nav class="navbar navbar-light bg-light fixed-top">
         <div class="container-fluid">
-            <a class="navbar-brand" href="#">Building Permits Viewer</a>
+            <a class="navbar-brand" href="#">🛠️ Building Permits Viewer</a>
             <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#filterMenu" aria-controls="filterMenu" aria-expanded="false" aria-label="Toggle navigation">
                 <span class="bi bi-funnel"></span>
             </button>
             <div class="collapse navbar-collapse" id="filterMenu">
                 <div class="navbar-nav">
-                    <select id="categoryFilter" class="form-select me-2" onchange="updateView()"></select>
-                    <select id="neighborhoodFilter" class="form-select me-2" onchange="updateView()"></select>
-                    <select id="subtypeFilter" class="form-select" onchange="updateView()"></select>
+                    <select id="categoryFilter" class="form-select me-2" onchange="fetchData()">
+                        <option value="">All Permit Categories</option>
+                        <option value="Board-ups">Board-ups</option>
+                        <option value="Electrical">Electrical</option>
+                        <option value="HVAC and Refrigeration">HVAC and Refrigeration</option>
+                        <option value="New">New</option>
+                        <option value="Plumbing">Plumbing</option>
+                        <option value="Repair or Alteration">Repair or Alteration</option>
+                    </select>
+                    <select id="subtypeFilter" class="form-select" onchange="fetchData()">
+                        <option value="">Residential & Commercial</option>
+                        <option value="Residential">Residential</option>
+                        <option value="Commercial">Commercial</option>
+                    </select>
+                    <select id="neighborhoodFilter" class="form-select me-2" onchange="fetchData()">
+                        <option value="">All Neighborhoods</option>
+                        <option value="Bellaire-Puritas">Bellaire-Puritas</option>
+                        <option value="Broadway-Slavic Village">Broadway-Slavic Village</option>
+                        <option value="Brooklyn Centre">Brooklyn Centre</option>
+                        <option value="Buckeye-Shaker Square">Buckeye-Shaker Square</option>
+                        <option value="Buckeye-Woodhill">Buckeye-Woodhill</option>
+                        <option value="Central">Central</option>
+                        <option value="Clark-Fulton">Clark-Fulton</option>
+                        <option value="Collinwood-Nottingham">Collinwood-Nottingham</option>
+                        <option value="Cudell">Cudell</option>
+                        <option value="Detroit Shoreway">Detroit Shoreway</option>
+                        <option value="Downtown">Downtown</option>
+                        <option value="Edgewater">Edgewater</option>
+                        <option value="Euclid-Green">Euclid-Green</option>
+                        <option value="Fairfax">Fairfax</option>
+                        <option value="Glenville">Glenville</option>
+                        <option value="Goodrich-Kirtland Pk">Goodrich-Kirtland Pk</option>
+                        <option value="Hough">Hough</option>
+                        <option value="Jefferson">Jefferson</option>
+                        <option value="Kamm's">Kamm's</option>
+                        <option value="Lee-Harvard">Lee-Harvard</option>
+                        <option value="Mount Pleasant">Mount Pleasant</option>
+                        <option value="Ohio City">Ohio City</option>
+                        <option value="Old Brooklyn">Old Brooklyn</option>
+                        <option value="Stockyards">Stockyards</option>
+                        <option value="Tremont">Tremont</option>
+                        <option value="West Boulevard">West Boulevard</option>
+                    </select>
+                    <div class="input-group me-2">
+                        <input id="addressSearchInput" type="text" class="form-control" placeholder="Search Address" onchange="resetAndFetchData()">
+                        </button>
+                    </div>
+                    <div class="input-group me-2">
+                        <input id="searchInput" type="text" class="form-control" placeholder="Search Work Description" onchange="resetAndFetchData()">
+                    </div>
+                    <div class="d-grid gap-2 mt-2">
+                        <button class="btn btn-primary w-100" onclick="searchAndCloseNav()">
+                            <i class="bi bi-search"></i> Search
+                        </button>
+                        <button class="btn btn-danger w-100" onclick="clearFilters()">
+                            <i class="bi bi-x-circle"></i> Clear
+                        </button>
+                    </div>
                 </div>
             </div>
         </div>
     </nav>
-    <div id="loadingSpinner" style="display: none;">
-        <div class="spinner-border" role="status"></div>
-        <p>Loading...</p>
-    </div>
+    <div id="querySummary" class="text-muted small mb-2 query-summary"></div>
     <div class="content-container" id="dataContainer"></div>
+    <div id="bottomLoadingSpinner" class="text-center mt-3" style="display: none;">
+        <div class="spinner-border text-primary" role="status">
+            <span class="visually-hidden">Loading more...</span>
+        </div>
+    </div>
+    <div id="noMoreResults" class="text-center mt-3" style="display: none;">
+        <p>No more results available.</p>
+    </div>
 </body>
 </html>
