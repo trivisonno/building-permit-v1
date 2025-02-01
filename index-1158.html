@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Building Permits Viewer</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <script>
+        async function fetchData(filterCategory = "", filterNeighborhood = "", filterSubtype = "") {
+            const url = "https://services3.arcgis.com/dty2kHktVXHrqO8i/arcgis/rest/services/Building_Permits/FeatureServer/0/query";
+            let whereClauses = ["1=1"];
+            
+            if (filterCategory) whereClauses.push(`PERMIT_CATEGORY='${filterCategory.replace(/'/g, "''")}'`);
+            if (filterNeighborhood) whereClauses.push(`DW_Neighborhood='${filterNeighborhood.replace(/'/g, "''")}'`);
+            if (filterSubtype) whereClauses.push(`PERMIT_SUBTYPE='${filterSubtype.replace(/'/g, "''")}'`);
+            
+            const params = new URLSearchParams({
+                where: whereClauses.join(" AND "),
+                outFields: "PERMIT_ID,PRIMARY_ADDRESS,PERMIT_SUBTYPE,PERMIT_CATEGORY,WORK_DESCRIPTION,CONTRACTOR,JOB_VALUE,FILE_DATE,PARCEL_NUMBER,WARD,DW_Neighborhood",
+                orderByFields: "FILE_DATE DESC",
+                resultRecordCount: "500",
+                f: "json"
+            });
+            
+            const response = await fetch(`${url}?${params}`);
+            const data = await response.json();
+            return data.features.map(f => f.attributes);
+        }
+
+        async function populateSelectBoxes() {
+            const records = await fetchData();
+            const categories = [...new Set(records.map(record => record.PERMIT_CATEGORY))];
+            const neighborhoods = [...new Set(records.map(record => record.DW_Neighborhood))];
+            const subtypes = [...new Set(records.map(record => record.PERMIT_SUBTYPE))];
+            
+            document.getElementById("categoryFilter").innerHTML = `<option value="">All Categories</option>` + categories.map(c => `<option value="${c}">${c}</option>`).join("");
+            document.getElementById("neighborhoodFilter").innerHTML = `<option value="">All Neighborhoods</option>` + neighborhoods.map(n => `<option value="${n}">${n}</option>`).join("");
+            document.getElementById("subtypeFilter").innerHTML = `<option value="">All Types</option>` + subtypes.map(s => `<option value="${s}">${s}</option>`).join("");
+        }
+
+        function formatDate(dateString) {
+            const date = new Date(dateString);
+            return date.toLocaleDateString();
+        }
+
+        async function updateTable() {
+            const filterCategory = document.getElementById("categoryFilter").value;
+            const filterNeighborhood = document.getElementById("neighborhoodFilter").value;
+            const filterSubtype = document.getElementById("subtypeFilter").value;
+            const tableBody = document.getElementById("tableBody");
+            
+            tableBody.innerHTML = "<tr><td colspan='11' class='text-center'><div class='spinner-border' role='status'></div> Loading...</td></tr>";
+            
+            const records = await fetchData(filterCategory, filterNeighborhood, filterSubtype);
+            
+            tableBody.innerHTML = "";
+            
+            if (records.length > 0) {
+                records.forEach(record => {
+                    tableBody.innerHTML += `
+                        <tr>
+                            <td><a href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(record.PRIMARY_ADDRESS)}" class="btn btn-sm btn-outline-primary" target="_blank">${record.PRIMARY_ADDRESS}</a></td>
+                            <td>${record.WORK_DESCRIPTION || ''}</td>
+                            <td>${record.JOB_VALUE || ''}</td>
+                            <td>${record.CONTRACTOR || ''}</td>
+                            <td>${record.DW_Neighborhood || ''}</td>
+                            <td class="d-none d-md-table-cell">${record.PARCEL_NUMBER || ''}</td>
+                            <td class="d-none d-md-table-cell">${record.WARD || ''}</td>
+                            <td>${record.PERMIT_ID || ''}</td>
+                            <td>${record.PERMIT_SUBTYPE || ''}</td>
+                            <td>${record.PERMIT_CATEGORY || ''}</td>
+                            <td>${formatDate(record.FILE_DATE) || ''}</td>
+                        </tr>`;
+                });
+            }
+        }
+        
+        window.onload = async function () {
+            await populateSelectBoxes();
+            await updateTable();
+        };
+    </script>
+</head>
+<body class="container mt-4">
+    <h2>Building Permits Viewer</h2>
+    <div class="row mb-3">
+        <div class="col-12 col-md-4">
+            <label for="categoryFilter" class="form-label">Filter by Permit Category:</label>
+            <select id="categoryFilter" class="form-select" onchange="updateTable()"></select>
+        </div>
+        <div class="col-12 col-md-4">
+            <label for="neighborhoodFilter" class="form-label">Filter by Neighborhood:</label>
+            <select id="neighborhoodFilter" class="form-select" onchange="updateTable()"></select>
+        </div>
+        <div class="col-12 col-md-4">
+            <label for="subtypeFilter" class="form-label">Filter by Permit Type:</label>
+            <select id="subtypeFilter" class="form-select" onchange="updateTable()"></select>
+        </div>
+    </div>
+    <div class="table-responsive">
+        <table class="table table-striped table-bordered">
+            <thead>
+                <tr>
+                    <th>Primary Address</th>
+                    <th>Work Description</th>
+                    <th>Job Value</th>
+                    <th>Contractor</th>
+                    <th>DW Neighborhood</th>
+                    <th class="d-none d-md-table-cell">Parcel Number</th>
+                    <th class="d-none d-md-table-cell">Ward</th>
+                    <th>Permit ID</th>
+                    <th>Permit Subtype</th>
+                    <th>Permit Category</th>
+                    <th>File Date</th>
+                </tr>
+            </thead>
+            <tbody id="tableBody"></tbody>
+        </table>
+    </div>
+</body>
+</html>

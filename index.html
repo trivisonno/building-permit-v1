@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Building Permits Viewer</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons/font/bootstrap-icons.css">
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <style>
+        #loadingSpinner {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center;
+        }
+        .content-container {
+            padding-top: 80px;
+        }
+    </style>
+    <script>
+        async function fetchData(filterCategory = "", filterNeighborhood = "", filterSubtype = "") {
+            const url = "https://services3.arcgis.com/dty2kHktVXHrqO8i/arcgis/rest/services/Building_Permits/FeatureServer/0/query";
+            let whereClauses = ["1=1"];
+            
+            if (filterCategory) whereClauses.push(`PERMIT_CATEGORY='${filterCategory.replace(/'/g, "''")}'`);
+            if (filterNeighborhood) whereClauses.push(`DW_Neighborhood='${filterNeighborhood.replace(/'/g, "''")}'`);
+            if (filterSubtype) whereClauses.push(`PERMIT_SUBTYPE='${filterSubtype.replace(/'/g, "''")}'`);
+            
+            const params = new URLSearchParams({
+                where: whereClauses.join(" AND "),
+                outFields: "PERMIT_ID,PRIMARY_ADDRESS,PERMIT_SUBTYPE,PERMIT_CATEGORY,WORK_DESCRIPTION,CONTRACTOR,JOB_VALUE,FILE_DATE,PARCEL_NUMBER,WARD,DW_Neighborhood",
+                orderByFields: "FILE_DATE DESC",
+                resultRecordCount: "500",
+                f: "json"
+            });
+            
+            const response = await fetch(`${url}?${params}`);
+            const data = await response.json();
+            return data.features.map(f => f.attributes);
+        }
+
+        async function updateView() {
+            const filterCategory = document.getElementById("categoryFilter").value;
+            const filterNeighborhood = document.getElementById("neighborhoodFilter").value;
+            const filterSubtype = document.getElementById("subtypeFilter").value;
+            const container = document.getElementById("dataContainer");
+            const spinner = document.getElementById("loadingSpinner");
+            
+            container.innerHTML = "";
+            spinner.style.display = "block";
+            
+            const records = await fetchData(filterCategory, filterNeighborhood, filterSubtype);
+            spinner.style.display = "none";
+            
+            if (records.length > 0) {
+                records.forEach(record => {
+                    let addressCleaned = record.PRIMARY_ADDRESS.replace(/,? CLEVELAND,? OH,? \d{5}/i, "");
+                    let formattedJobValue = record.JOB_VALUE ? `$${Math.round(record.JOB_VALUE).toLocaleString()}` : "N/A";
+                    container.innerHTML += `
+                        <div class="card mb-3 p-2">
+                            <p class="card-text">
+                                <a href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(record.PRIMARY_ADDRESS)}" target="_blank">${addressCleaned}</a> (${record.DW_Neighborhood || 'N/A'}, Ward ${record.WARD || 'N/A'})
+                            </p>
+                            <h5 class="card-title">${record.WORK_DESCRIPTION || 'No description'}</h5>
+                            <p class="card-text">${formattedJobValue} | ${record.CONTRACTOR || 'N/A'}</p>
+                            <small class="text-muted">Permit: ${record.PERMIT_ID || 'N/A'} | Filed: ${formatDate(record.FILE_DATE)}</small>
+                        </div>`;
+                });
+            }
+        }
+
+        function formatDate(dateString) {
+            const date = new Date(dateString);
+            return date.toLocaleDateString();
+        }
+
+        async function populateSelectBoxes() {
+            const records = await fetchData();
+            const categories = [...new Set(records.map(record => record.PERMIT_CATEGORY))];
+            const neighborhoods = [...new Set(records.map(record => record.DW_Neighborhood))];
+            const subtypes = [...new Set(records.map(record => record.PERMIT_SUBTYPE))];
+            
+            document.getElementById("categoryFilter").innerHTML = `<option value="">All Categories</option>` + categories.map(c => `<option value="${c}">${c}</option>`).join("");
+            document.getElementById("neighborhoodFilter").innerHTML = `<option value="">All Neighborhoods</option>` + neighborhoods.map(n => `<option value="${n}">${n}</option>`).join("");
+            document.getElementById("subtypeFilter").innerHTML = `<option value="">All Types</option>` + subtypes.map(s => `<option value="${s}">${s}</option>`).join("");
+        }
+        
+        window.onload = async function () {
+            await populateSelectBoxes();
+            await updateView();
+        };
+    </script>
+</head>
+<body class="container mt-4">
+    <nav class="navbar navbar-expand-lg navbar-light bg-light fixed-top">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="#">Building Permits Viewer</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#filterMenu" aria-controls="filterMenu" aria-expanded="false" aria-label="Toggle navigation">
+                <span class="bi bi-funnel"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="filterMenu">
+                <div class="navbar-nav">
+                    <select id="categoryFilter" class="form-select me-2" onchange="updateView()"></select>
+                    <select id="neighborhoodFilter" class="form-select me-2" onchange="updateView()"></select>
+                    <select id="subtypeFilter" class="form-select" onchange="updateView()"></select>
+                </div>
+            </div>
+        </div>
+    </nav>
+    <div id="loadingSpinner" style="display: none;">
+        <div class="spinner-border" role="status"></div>
+        <p>Loading...</p>
+    </div>
+    <div class="content-container" id="dataContainer"></div>
+</body>
+</html>
