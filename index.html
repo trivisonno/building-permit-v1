@@ -73,7 +73,7 @@
         let loading = false;
         let lastSearchQuery = ""; // Stores the last executed query
         let noMoreResults = false; // Flag to prevent further unnecessary fetches
-
+        const sessionUUID = crypto.randomUUID(); // Generate a unique session ID
 
 
         async function fetchData(append = false) {
@@ -90,25 +90,34 @@
             const addressQuery = document.getElementById("addressSearchInput").value.trim().replace(/\s+/g, "%");
             const sortOrder = document.getElementById("sortOrder").value; // Get selected sort order
 
+            const resultOffset = append ? (currentPage * recordsPerPage) : 0; // Track pagination
+
+            // Create a search query string to check if anything has changed
+            const currentSearchQuery = JSON.stringify({
+                filterCategory,
+                filterNeighborhood,
+                filterSubtype,
+                searchQuery,
+                addressQuery,
+                sortOrder,
+                resultOffset,
+                append
+            });
+
+            
+
             // Show the bottom spinner when appending more data
             if (append) {
                 document.getElementById("bottomLoadingSpinner").style.display = "block";
             }
 
-            // Create a search query string to check if anything has changed
-            const currentSearchQuery = JSON.stringify({
-                filterCategory, filterNeighborhood, filterSubtype, searchQuery, addressQuery
-            });
 
-            // Stop further fetches if the query is the same and appending data
-            // if (append && currentSearchQuery === lastSearchQuery) {
-            //     console.log("Appending data");
-            //     loading = false;
-            //     // Hide the bottom spinner after fetching
-            //     document.getElementById("bottomLoadingSpinner").style.display = "none";
-            //     document.getElementById("noMoreResults").style.display = "block";
-            //     return;
-            // }
+            // Prevent re-running the same query when clicking Search
+            if (!append && currentSearchQuery === lastSearchQuery) {
+                console.log("Same search query, not re-running fetchData.");
+                loading = false;
+                return;
+            }
 
             lastSearchQuery = currentSearchQuery; // Store the current query for comparison
             noMoreResults = false; // Reset "no more results" flag for new searches
@@ -409,6 +418,10 @@
                     messageElement.style.opacity = 1; // Fade in
                 }, 500); // Matches CSS transition time (0.8s)
             }, 4500);
+
+            document.getElementById("faqButton").addEventListener("click", function () {
+                logSearchQuery("", "", "", "FAQ Clicked", "", "", 0, false);
+            });  
         });
 
 
@@ -449,24 +462,39 @@
             }
 
 
-        async function logSearchQuery(filterCategory, filterNeighborhood, filterSubtype, searchQuery, addressQuery, sortOrder) {
+        async function logSearchQuery(filterCategory, filterNeighborhood, filterSubtype, searchQuery, addressQuery, sortOrder, resultOffset, append) {
                 const logData = {
-                    category: filterCategory,
-                    neighborhood: filterNeighborhood,
-                    subtype: filterSubtype,
-                    searchQuery: searchQuery,
-                    addressQuery: addressQuery,
-                    sortOrder: sortOrder
+                    records: [{
+                        fields: {
+                            "Session UUID": sessionUUID, // Include session ID
+                            "User-Agent": navigator.userAgent, // Browser & device info
+                            "Screen Width": window.screen.width, // User's screen width
+                            "Screen Height": window.screen.height, // User's screen height
+                            "Category": filterCategory || "",
+                            "Neighborhood": filterNeighborhood || "",
+                            "Subtype": filterSubtype || "",
+                            "Search Query": searchQuery.replace(/%/g, "").trim() || "",
+                            "Address Query": addressQuery.replace(/%/g, "").trim() || "",
+                            "Sort Order": sortOrder || "",
+                            "Result Offset": resultOffset, // Log pagination offset
+                            "Append": append // Log append status
+                        }
+                    }]
                 };
 
-                console.log(logData);
+                const url = `https://api.airtable.com/v0/${atob("YXBwd0VsSEZFekFKNWRpRno=")}/Logs`; // Base ID
+                const apiKey = `Bearer ${atob("cGF0RkFucm91UTNYQUZ5VGYuZjM5YzUyOTVjNjYxMDc2Y2EyOTZhNWQyMmEwNWI4NWIxYTFkYzkwYzVmYzIyNjA0MzBkNTdjODUxYTlhNDNkZQ==")}`;
 
-                fetch("https://script.google.com/macros/s/AKfycbxlqnb6us5ajcKyBnF7URXTQutVYdKs26uaGXWpuqJkFRc-w5G6aBYRM6Gn87D82Ov73w/exec", {
+                
+                
+                fetch(url, {
                     method: "POST",
-                    body: JSON.stringify(logData),
-                    headers: { "Content-Type": "application/json" }
-                });
-            }    
+                    headers: { "Authorization": "Bearer patFAnrouQ3XAFyTf.f39c5295c661076ca296a5d22a05b85b1a1dc90c5fc2260430d57c851aca43de", "Content-Type": "application/json" },
+                    body: JSON.stringify(logData)
+                }).then(res => res.json())
+                    .then(data => console.log("Logged:", data))
+                    .catch(err => console.error("Log Error:", err));
+                }
     </script>
 </head>
 <body class="container mt-4">
@@ -547,7 +575,6 @@
                     </select>
                     <div class="input-group me-2 mb-2">
                         <input id="addressSearchInput" type="text" class="form-control" placeholder="Search Address" onchange="resetAndFetchData()">
-                        </button>
                     </div>
                     <div class="d-grid gap-2 mt-2">
                         <button class="btn btn-primary w-100 mb-2" onclick="searchAndCloseNav()">
@@ -556,7 +583,7 @@
                         <button class="btn btn-danger w-100 mb-2" onclick="clearFilters()">
                             <i class="bi bi-x-circle"></i> Clear filters
                         </button>
-                        <button class="btn btn-outline-success w-100 mb-2" data-bs-toggle="modal" data-bs-target="#faqModal">
+                        <button id="faqButton" class="btn btn-outline-success w-100 mb-2" data-bs-toggle="modal" data-bs-target="#faqModal">
                             <i class="bi bi-question-circle"></i> FAQ
                         </button>
                     </div>
