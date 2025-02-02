@@ -418,6 +418,10 @@
                     messageElement.style.opacity = 1; // Fade in
                 }, 500); // Matches CSS transition time (0.8s)
             }, 4500);
+
+            document.getElementById("faqButton").addEventListener("click", function () {
+                logSearchQuery("", "", "", "FAQ Clicked", "", "", 0, false);
+            });  
         });
 
 
@@ -491,6 +495,8 @@
                     .then(data => console.log("Logged:", data))
                     .catch(err => console.error("Log Error:", err));
                 }
+
+              
     </script>
 </head>
 <body class="container mt-4">
@@ -571,7 +577,6 @@
                     </select>
                     <div class="input-group me-2 mb-2">
                         <input id="addressSearchInput" type="text" class="form-control" placeholder="Search Address" onchange="resetAndFetchData()">
-                        </button>
                     </div>
                     <div class="d-grid gap-2 mt-2">
                         <button class="btn btn-primary w-100 mb-2" onclick="searchAndCloseNav()">
@@ -580,7 +585,7 @@
                         <button class="btn btn-danger w-100 mb-2" onclick="clearFilters()">
                             <i class="bi bi-x-circle"></i> Clear
                         </button>
-                        <button class="btn btn-outline-success w-100 mb-2" data-bs-toggle="modal" data-bs-target="#faqModal">
+                        <button id="faqButton" class="btn btn-outline-success w-100 mb-2" data-bs-toggle="modal" data-bs-target="#faqModal">
                             <i class="bi bi-question-circle"></i> FAQ
                         </button>
                     </div>
