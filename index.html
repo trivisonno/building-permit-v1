@@ -381,8 +381,8 @@
 </head>
 <body class="container mt-4">
     <div id="overlay"></div>
-    <div class="navbar navbar-light bg-light fixed-top">
-        <div class="container-fluid">
+    <nav class="navbar navbar-light bg-light fixed-top">
+        <div class="container d-flex justify-content-between align-items-center">
             <a class="navbar-brand" href="#">🛠️ Cleveland Building Permits</a>
             <button id="filterToggle" class="navbar-toggler position-relative" type="button" data-bs-toggle="collapse"
                 data-bs-target="#filterMenu" aria-controls="filterMenu" aria-expanded="false" aria-label="Toggle navigation">
@@ -455,7 +455,7 @@
                 </div>
             </div>
         </div>
-    </div>
+    </nav>
     <div id="querySummary" class="text-muted small mb-2 query-summary"></div>
     <div class="content-container" id="dataContainer"></div>
     <div id="bottomLoadingSpinner" class="text-center mt-3" style="display: none;">
