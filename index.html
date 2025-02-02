@@ -7,7 +7,6 @@
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons/font/bootstrap-icons.css">
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <style>
         #loadingSpinner {
             position: fixed;
@@ -58,7 +57,7 @@
 
         #loadingMessage {
             opacity: 1;
-            transition: opacity 0.8s ease-in-out;
+            transition: opacity 0.5s ease-in-out;
         }
     </style>
     <script>
@@ -233,13 +232,15 @@
         }
 
         function searchAndCloseNav() {
-            fetchData(); // Run the search query
+                fetchData(); // Run the search query
 
-            // Close the navbar
-            let filterMenu = document.getElementById("filterMenu");
-            let navbar = new bootstrap.Collapse(filterMenu);
-            navbar.hide();
-        }
+                // Close the navbar properly
+                let filterMenu = document.getElementById("filterMenu");
+                let bsCollapse = new bootstrap.Collapse(filterMenu, {
+                    toggle: false
+                });
+                bsCollapse.hide();
+            }
 
         function clearFilters() {
             // Reset all inputs and selects
@@ -280,6 +281,7 @@
         document.addEventListener("DOMContentLoaded", function () {
             const filterMenu = document.getElementById("filterMenu");
             const overlay = document.getElementById("overlay");
+            const navbarToggler = document.querySelector(".navbar-toggler");
 
             // Function to show overlay with fade-in effect
             function showOverlay() {
@@ -295,15 +297,27 @@
                 }, 200); // Matches the CSS transition duration
             }
 
-            // Show overlay when navbar is opened
+            // Show overlay when navbar opens
             filterMenu.addEventListener("shown.bs.collapse", showOverlay);
 
-            // Hide overlay when navbar is closed
+            // Hide overlay when navbar closes
             filterMenu.addEventListener("hidden.bs.collapse", hideOverlay);
 
+            // Close navbar when clicking outside
             overlay.addEventListener("click", function () {
-                let navbar = new bootstrap.Collapse(filterMenu);
-                navbar.hide();
+                let bsCollapse = new bootstrap.Collapse(filterMenu, {
+                    toggle: false
+                });
+                bsCollapse.hide();
+            });
+
+            // Ensure navbar toggles properly when clicking the button
+            navbarToggler.addEventListener("click", function () {
+                if (filterMenu.classList.contains("show")) {
+                    hideOverlay();
+                } else {
+                    showOverlay();
+                }
             });
 
             // Function to trigger search when Enter is pressed
@@ -323,9 +337,7 @@
             document.querySelectorAll("#filterMenu input, #filterMenu select").forEach(element => {
                 element.addEventListener("keypress", handleEnterKey);
             });
-        });
-        
-        window.onload = function () {
+
             fetchData();
             window.addEventListener("scroll", handleScroll);
             document.querySelectorAll("#filterMenu input, #filterMenu select").forEach(element => {
@@ -354,7 +366,8 @@
                     messageElement.style.opacity = 1; // Fade in
                 }, 500); // Matches CSS transition time (0.8s)
             }, 4500);
-        };
+        });
+
 
         function updateFilterIndicator() {
                 const filterIndicator = document.getElementById("filterIndicator");
@@ -375,8 +388,7 @@
                 }
             }
 
-        // Call updateFilterIndicator whenever filters change
-
+        
         // List of friendly loading messages
         const loadingMessages = [
             "One moment please...",
@@ -385,13 +397,6 @@
             "Loading... Good things take time!",
             "Hang tight! We’re pulling the records..."
         ];
-
-        
-        // }
-
-        function stopLoadingMessages() {
-            clearInterval(messageInterval);
-        }
     
         function activateTooltips() {
                 let tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
