@@ -206,14 +206,29 @@
                     const permitApiUrl = `https://services3.arcgis.com/dty2kHktVXHrqO8i/arcgis/rest/services/Building_Permits/FeatureServer/0/query?where=PERMIT_ID+%3D+%27${encodeURIComponent(record.PERMIT_ID)}%27&objectIds=&resultType=none&outFields=*&returnIdsOnly=false&returnUniqueIdsOnly=false&returnCountOnly=false&returnDistinctValues=false&cacheHint=false&collation=&orderByFields=FILE_DATE+DESC&groupByFieldsForStatistics=&outStatistics=&having=&resultOffset=&resultRecordCount=&sqlFormat=none&f=html&token=`;
 
                     container.innerHTML += `
-                        <div class="card mb-3 p-2">
-                            <p class="card-text">
-                                <a href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(record.PRIMARY_ADDRESS)}" target="_blank">${highlightedAddress}</a> <br>
+                        <div class="card mb-3">
+                            <!-- Top section (Address) -->
+                            <div class="card-header bg-light">
+                                <p class="card-text mb-0">
+                                    <a href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(record.PRIMARY_ADDRESS)}" target="_blank">${highlightedAddress}</a> 
+                                </p>
                                 <small class="text-muted">${record.DW_Neighborhood || 'N/A'}, Ward ${record.DW_Ward || 'N/A'}</small>
-                            </p>
-                            <h5 class="card-title">${highlightedDescription}</h5>
-                            <p class="card-text">${formattedJobValue} | ${contractorName || 'N/A'}</p>
-                            <small class="text-muted">${subtypeIcon} Permit <a href="${permitApiUrl}" target="_blank" class="permit-link">${record.PERMIT_ID || 'N/A'}</a> | Filed ${new Date(record.FILE_DATE).toLocaleDateString()}</small>
+                            </div>
+
+                            <!-- Center section (Work Description - White Background) -->
+                            <div class="card-body">
+                                <h5 class="card-title">${highlightedDescription}</h5>
+                                <p class="card-text">${formattedJobValue} | ${contractorName || 'N/A'}</p>
+                            </div>
+
+                            <!-- Bottom section (Permit Info) -->
+                            <div class="card-footer bg-light">
+                                <small class="text-muted">
+                                    ${subtypeIcon} Permit 
+                                    <a href="${permitApiUrl}" target="_blank" class="permit-link">${record.PERMIT_ID || 'N/A'}</a> | 
+                                    Filed ${new Date(record.FILE_DATE).toLocaleDateString()}
+                                </small>
+                            </div>
                         </div>`;
                 });
 
@@ -441,21 +456,20 @@
             </button>
             <div class="collapse navbar-collapse" id="filterMenu">
                 <div class="navbar-nav">
-                    <select id="categoryFilter" class="form-select me-2" onchange="fetchData()">
-                        <option value="">All Permit Categories</option>
-                        <option value="Board-ups">Board-ups</option>
-                        <option value="Electrical">Electrical</option>
-                        <option value="HVAC and Refrigeration">HVAC and Refrigeration</option>
-                        <option value="New">New</option>
-                        <option value="Plumbing">Plumbing</option>
-                        <option value="Repair or Alteration">Repair or Alteration</option>
-                    </select>
-                    <select id="subtypeFilter" class="form-select" onchange="fetchData()">
-                        <option value="">Residential & Commercial 🏠🏢</option>
-                        <option value="Residential">Residential Only 🏠</option>
-                        <option value="Commercial">Commercial Only 🏢</option>
-                    </select>
-                    <select id="neighborhoodFilter" class="form-select me-2" onchange="fetchData()">
+                    <div class="input-group me-2 mb-2">
+                        <label for="sortOrder" class="input-group-text">Sort</label>
+                        <select id="sortOrder" class="form-select" onchange="fetchData()">
+                            <option value="FILE_DATE DESC">Newest First</option>
+                            <option value="FILE_DATE ASC">Oldest First</option>
+                            <option value="JOB_VALUE DESC">Highest Job Value First</option>
+                            <option value="JOB_VALUE ASC">Lowest Job Value First</option>
+                        </select>
+                    </div>
+                    <div class="input-group me-2 mb-2">
+                        <input id="searchInput" type="text" class="form-control" placeholder="Search Work Description"
+                            onchange="resetAndFetchData()">
+                    </div>
+                    <select id="neighborhoodFilter" class="form-select me-2 mb-2" onchange="fetchData()">
                         <option value="">All Neighborhoods</option>
                         <option value="Bellaire-Puritas">Bellaire-Puritas</option>
                         <option value="Broadway-Slavic Village">Broadway-Slavic Village</option>
@@ -492,30 +506,32 @@
                         <option value="University">University</option>
                         <option value="West Boulevard">West Boulevard</option>
                     </select>
-                    <div class="input-group me-2">
-                        <label for="sortOrder" class="input-group-text">Sort</label>
-                        <select id="sortOrder" class="form-select" onchange="fetchData()">
-                            <option value="FILE_DATE DESC">Newest First</option>
-                            <option value="FILE_DATE ASC">Oldest First</option>
-                            <option value="JOB_VALUE DESC">Highest Job Value First</option>
-                            <option value="JOB_VALUE ASC">Lowest Job Value First</option>
-                        </select>
-                    </div>
-                    <div class="input-group me-2">
+                    <select id="categoryFilter" class="form-select me-2 mb-2" onchange="fetchData()">
+                        <option value="">All Permit Categories</option>
+                        <option value="Board-ups">Board-ups</option>
+                        <option value="Electrical">Electrical</option>
+                        <option value="HVAC and Refrigeration">HVAC and Refrigeration</option>
+                        <option value="New">New</option>
+                        <option value="Plumbing">Plumbing</option>
+                        <option value="Repair or Alteration">Repair or Alteration</option>
+                    </select>
+                    <select id="subtypeFilter" class="form-select mb-2" onchange="fetchData()">
+                        <option value="">Residential & Commercial 🏠🏢</option>
+                        <option value="Residential">Residential Only 🏠</option>
+                        <option value="Commercial">Commercial Only 🏢</option>
+                    </select>
+                    <div class="input-group me-2 mb-2">
                         <input id="addressSearchInput" type="text" class="form-control" placeholder="Search Address" onchange="resetAndFetchData()">
                         </button>
                     </div>
-                    <div class="input-group me-2">
-                        <input id="searchInput" type="text" class="form-control" placeholder="Search Work Description" onchange="resetAndFetchData()">
-                    </div>
                     <div class="d-grid gap-2 mt-2">
-                        <button class="btn btn-primary w-100" onclick="searchAndCloseNav()">
+                        <button class="btn btn-primary w-100 mb-2" onclick="searchAndCloseNav()">
                             <i class="bi bi-search"></i> Search
                         </button>
-                        <button class="btn btn-danger w-100" onclick="clearFilters()">
+                        <button class="btn btn-danger w-100 mb-2" onclick="clearFilters()">
                             <i class="bi bi-x-circle"></i> Clear
                         </button>
-                        <button class="btn btn-outline-success w-100" data-bs-toggle="modal" data-bs-target="#faqModal">
+                        <button class="btn btn-outline-success w-100 mb-2" data-bs-toggle="modal" data-bs-target="#faqModal">
                             <i class="bi bi-question-circle"></i> FAQ
                         </button>
                     </div>
