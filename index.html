@@ -59,6 +59,12 @@
             opacity: 1;
             transition: opacity 0.5s ease-in-out;
         }
+
+        .permit-link {
+            text-decoration: underline; /* Underline the link */
+            color: inherit; /* Keep the same color as surrounding text */
+            cursor: pointer; /* Indicate it's clickable */
+        }
     </style>
     <script>
         let currentPage = 0;
@@ -80,8 +86,9 @@
             const filterCategory = document.getElementById("categoryFilter").value;
             const filterNeighborhood = document.getElementById("neighborhoodFilter").value;
             const filterSubtype = document.getElementById("subtypeFilter").value;
-            const searchQuery = document.getElementById("searchInput").value.trim().replace(/\s+/g, "%");
+            const searchQuery = `%${document.getElementById("searchInput").value.trim()}%`;
             const addressQuery = document.getElementById("addressSearchInput").value.trim().replace(/\s+/g, "%");
+            const sortOrder = document.getElementById("sortOrder").value; // Get selected sort order
 
             // Show the bottom spinner when appending more data
             if (append) {
@@ -131,7 +138,7 @@
             const params = new URLSearchParams({
                 where: whereClauses.join(" AND "),
                 outFields: "PERMIT_ID,PRIMARY_ADDRESS,PERMIT_SUBTYPE,PERMIT_CATEGORY,WORK_DESCRIPTION,CONTRACTOR_NAME,CONTRATOR_BUSINESS_NAME,JOB_VALUE,FILE_DATE,PARCEL_NUMBER,DW_Ward,DW_Neighborhood",
-                orderByFields: "FILE_DATE DESC",
+                orderByFields: sortOrder, // Use selected sorting order
                 resultOffset: currentPage * recordsPerPage,
                 resultRecordCount: recordsPerPage,
                 f: "json"
@@ -195,16 +202,19 @@
                     let highlightedDescription = highlightMatch(record.WORK_DESCRIPTION || 'No description', searchQuery);
                     let highlightedAddress = highlightMatch(addressCleaned, addressQuery);
 
+                    // Construct the ArcGIS API link for the permit ID
+                    const permitApiUrl = `https://services3.arcgis.com/dty2kHktVXHrqO8i/arcgis/rest/services/Building_Permits/FeatureServer/0/query?where=PERMIT_ID+%3D+%27${encodeURIComponent(record.PERMIT_ID)}%27&objectIds=&resultType=none&outFields=*&returnIdsOnly=false&returnUniqueIdsOnly=false&returnCountOnly=false&returnDistinctValues=false&cacheHint=false&collation=&orderByFields=FILE_DATE+DESC&groupByFieldsForStatistics=&outStatistics=&having=&resultOffset=&resultRecordCount=&sqlFormat=none&f=html&token=`;
+
                     container.innerHTML += `
-            <div class="card mb-3 p-2">
-                <p class="card-text">
-                    <a href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(record.PRIMARY_ADDRESS)}" target="_blank">${highlightedAddress}</a> <br>
-                    <small class="text-muted">${record.DW_Neighborhood || 'N/A'}, Ward ${record.DW_Ward || 'N/A'}</small>
-                </p>
-                <h5 class="card-title">${highlightedDescription}</h5>
-                <p class="card-text">${formattedJobValue} | ${contractorName || 'N/A'}</p>
-                <small class="text-muted">${subtypeIcon} Permit ${record.PERMIT_ID || 'N/A'} | Filed ${new Date(record.FILE_DATE).toLocaleDateString()}</small>
-            </div>`;
+                        <div class="card mb-3 p-2">
+                            <p class="card-text">
+                                <a href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(record.PRIMARY_ADDRESS)}" target="_blank">${highlightedAddress}</a> <br>
+                                <small class="text-muted">${record.DW_Neighborhood || 'N/A'}, Ward ${record.DW_Ward || 'N/A'}</small>
+                            </p>
+                            <h5 class="card-title">${highlightedDescription}</h5>
+                            <p class="card-text">${formattedJobValue} | ${contractorName || 'N/A'}</p>
+                            <small class="text-muted">${subtypeIcon} Permit <a href="${permitApiUrl}" target="_blank" class="permit-link">${record.PERMIT_ID || 'N/A'}</a> | Filed ${new Date(record.FILE_DATE).toLocaleDateString()}</small>
+                        </div>`;
                 });
 
 
@@ -266,12 +276,25 @@
             const subtype = document.getElementById("subtypeFilter").value;
             const searchQuery = document.getElementById("searchInput").value.trim();
             const addressQuery = document.getElementById("addressSearchInput").value.trim();
+            const sortOrder = document.getElementById("sortOrder").value;
 
             if (category) filters.push(`Category: ${category}`);
             if (neighborhood) filters.push(`Neighborhood: ${neighborhood}`);
             if (subtype) filters.push(`Type: ${subtype}`);
             if (searchQuery) filters.push(`Work: "${searchQuery}"`);
             if (addressQuery) filters.push(`Address: "${addressQuery}"`);
+
+
+            // Map sort values to user-friendly labels (excluding default "Newest First")
+            const sortLabels = {
+                "FILE_DATE ASC": "Oldest First",
+                "JOB_VALUE DESC": "Highest Job Value First",
+                "JOB_VALUE ASC": "Lowest Job Value First"
+            };
+
+            if (sortLabels[sortOrder]) {
+                filters.push(`Sorted: ${sortLabels[sortOrder]}`);
+            }
 
             const summaryText = filters.length ? `Filtering by: ${filters.join(", ")}` : "";
 
@@ -428,9 +451,9 @@
                         <option value="Repair or Alteration">Repair or Alteration</option>
                     </select>
                     <select id="subtypeFilter" class="form-select" onchange="fetchData()">
-                        <option value="">Residential & Commercial</option>
-                        <option value="Residential">Residential Only</option>
-                        <option value="Commercial">Commercial Only</option>
+                        <option value="">Residential & Commercial 🏠🏢</option>
+                        <option value="Residential">Residential Only 🏠</option>
+                        <option value="Commercial">Commercial Only 🏢</option>
                     </select>
                     <select id="neighborhoodFilter" class="form-select me-2" onchange="fetchData()">
                         <option value="">All Neighborhoods</option>
@@ -469,6 +492,15 @@
                         <option value="University">University</option>
                         <option value="West Boulevard">West Boulevard</option>
                     </select>
+                    <div class="input-group me-2">
+                        <label for="sortOrder" class="input-group-text">Sort</label>
+                        <select id="sortOrder" class="form-select" onchange="fetchData()">
+                            <option value="FILE_DATE DESC">Newest First</option>
+                            <option value="FILE_DATE ASC">Oldest First</option>
+                            <option value="JOB_VALUE DESC">Highest Job Value First</option>
+                            <option value="JOB_VALUE ASC">Lowest Job Value First</option>
+                        </select>
+                    </div>
                     <div class="input-group me-2">
                         <input id="addressSearchInput" type="text" class="form-control" placeholder="Search Address" onchange="resetAndFetchData()">
                         </button>
