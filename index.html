@@ -7,6 +7,7 @@
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons/font/bootstrap-icons.css">
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <style>
         #loadingSpinner {
             position: fixed;
@@ -130,7 +131,7 @@
             
             const params = new URLSearchParams({
                 where: whereClauses.join(" AND "),
-                outFields: "PERMIT_ID,PRIMARY_ADDRESS,PERMIT_SUBTYPE,PERMIT_CATEGORY,WORK_DESCRIPTION,CONTRACTOR,JOB_VALUE,FILE_DATE,PARCEL_NUMBER,WARD,DW_Neighborhood",
+                outFields: "PERMIT_ID,PRIMARY_ADDRESS,PERMIT_SUBTYPE,PERMIT_CATEGORY,WORK_DESCRIPTION,CONTRACTOR_NAME,CONTRATOR_BUSINESS_NAME,JOB_VALUE,FILE_DATE,PARCEL_NUMBER,DW_Ward,DW_Neighborhood",
                 orderByFields: "FILE_DATE DESC",
                 resultOffset: currentPage * recordsPerPage,
                 resultRecordCount: recordsPerPage,
@@ -178,7 +179,18 @@
 
                 allRecords.forEach(record => {
                     let addressCleaned = record.PRIMARY_ADDRESS.replace(/,? CLEVELAND,? OH,? \d{5}/i, "");
-                    let formattedJobValue = record.JOB_VALUE ? `$${Math.round(record.JOB_VALUE).toLocaleString()}` : "N/A";
+                    let formattedJobValue = record.JOB_VALUE ? `$${Math.round(record.JOB_VALUE).toLocaleString()}` : "$-";
+
+                    // Use CONTRATOR_BUSINESS_NAME if available; otherwise, fall back to CONTRACTOR
+                    let contractorName = record.CONTRATOR_BUSINESS_NAME?.trim() || record.CONTRACTOR_NAME?.trim() || '-';
+
+                    // Determine subtype icon with tooltip
+                    let subtypeIcon = '';
+                    if (record.PERMIT_SUBTYPE === "Residential") {
+                        subtypeIcon = `<i class="bi bi-house-fill text-success permit-subtype" data-bs-toggle="tooltip" title="Residential"></i>`;
+                    } else if (record.PERMIT_SUBTYPE === "Commercial") {
+                        subtypeIcon = `<i class="bi bi-building-fill text-primary permit-subtype" data-bs-toggle="tooltip" title="Commercial"></i>`;
+                    }
 
                     // Highlight matches in WORK_DESCRIPTION and ADDRESS
                     let highlightedDescription = highlightMatch(record.WORK_DESCRIPTION || 'No description', searchQuery);
@@ -187,14 +199,18 @@
                     container.innerHTML += `
             <div class="card mb-3 p-2">
                 <p class="card-text">
-                    <a href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(record.PRIMARY_ADDRESS)}" target="_blank">${highlightedAddress}</a> 
-                    (${record.DW_Neighborhood || 'N/A'}, Ward ${record.WARD || 'N/A'})
+                    <a href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(record.PRIMARY_ADDRESS)}" target="_blank">${highlightedAddress}</a> <br>
+                    <small class="text-muted">${record.DW_Neighborhood || 'N/A'}, Ward ${record.DW_Ward || 'N/A'}</small>
                 </p>
                 <h5 class="card-title">${highlightedDescription}</h5>
-                <p class="card-text">${formattedJobValue} | ${record.CONTRACTOR || 'N/A'}</p>
-                <small class="text-muted">Permit ${record.PERMIT_ID || 'N/A'} | Filed ${new Date(record.FILE_DATE).toLocaleDateString()}</small>
+                <p class="card-text">${formattedJobValue} | ${contractorName || 'N/A'}</p>
+                <small class="text-muted">${subtypeIcon} Permit ${record.PERMIT_ID || 'N/A'} | Filed ${new Date(record.FILE_DATE).toLocaleDateString()}</small>
             </div>`;
                 });
+
+
+                // Activate Bootstrap tooltips after the elements are added to the DOM
+                activateTooltips();
             }
 
         let scrollTimeout;
@@ -362,21 +378,27 @@
         // Call updateFilterIndicator whenever filters change
 
         // List of friendly loading messages
-            const loadingMessages = [
-                "One moment please...",
-                "Fetching the latest permits...",
-                "Almost there, getting the data...",
-                "Loading... Good things take time!",
-                "Hang tight! We’re pulling the records..."
-            ];
+        const loadingMessages = [
+            "One moment please...",
+            "Fetching the latest permits...",
+            "Almost there, getting the data...",
+            "Loading... Good things take time!",
+            "Hang tight! We’re pulling the records..."
+        ];
 
-            
-            // }
-
-            function stopLoadingMessages() {
-                clearInterval(messageInterval);
-            }
         
+        // }
+
+        function stopLoadingMessages() {
+            clearInterval(messageInterval);
+        }
+    
+        function activateTooltips() {
+                let tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+                tooltipTriggerList.forEach(function (tooltipTriggerEl) {
+                    new bootstrap.Tooltip(tooltipTriggerEl);
+                });
+            }
     </script>
 </head>
 <body class="container mt-4">
@@ -402,8 +424,8 @@
                     </select>
                     <select id="subtypeFilter" class="form-select" onchange="fetchData()">
                         <option value="">Residential & Commercial</option>
-                        <option value="Residential">Residential</option>
-                        <option value="Commercial">Commercial</option>
+                        <option value="Residential">Residential Only</option>
+                        <option value="Commercial">Commercial Only</option>
                     </select>
                     <select id="neighborhoodFilter" class="form-select me-2" onchange="fetchData()">
                         <option value="">All Neighborhoods</option>
