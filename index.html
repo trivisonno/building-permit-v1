@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>🛠️ Building Permits Viewer</title>
+    <title>🛠️ CLE B&H Permits Viewer</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons/font/bootstrap-icons.css">
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
@@ -36,10 +36,28 @@
             transition: opacity 0.15s ease-in-out, visibility 0.15s ease-in-out;
             z-index: 10;
         }
+
+        .highlight {
+            background-color: yellow;
+            font-weight: bold;
+            padding: 2px;
+            border-radius: 3px;
+        }
+
+        .filter-dot {
+            position: absolute;
+            top: 5px;
+            right: 5px;
+            width: 8px;
+            height: 8px;
+            background-color: red; /* Change color if needed */
+            border-radius: 50%;
+            display: none; /* Hide by default */
+        }
     </style>
     <script>
         let currentPage = 0;
-        const recordsPerPage = 50;
+        const recordsPerPage = 20;
         let allRecords = [];
         let loading = false;
         let lastSearchQuery = ""; // Stores the last executed query
@@ -47,7 +65,10 @@
 
 
         async function fetchData(append = false) {
-            if (loading || (noMoreResults && append)) return;
+            if (loading || (noMoreResults && append)) {
+                console.log("Loading or no more results");
+                return;
+            }
             loading = true;
 
             const filterCategory = document.getElementById("categoryFilter").value;
@@ -58,6 +79,7 @@
 
             // Show the bottom spinner when appending more data
             if (append) {
+                console.log("Appending data");
                 document.getElementById("bottomLoadingSpinner").style.display = "block";
             }
 
@@ -67,13 +89,14 @@
             });
 
             // Stop further fetches if the query is the same and appending data
-            if (append && currentSearchQuery === lastSearchQuery) {
-                loading = false;
-                // Hide the bottom spinner after fetching
-                document.getElementById("bottomLoadingSpinner").style.display = "none";
-                document.getElementById("noMoreResults").style.display = "block";
-                return;
-            }
+            // if (append && currentSearchQuery === lastSearchQuery) {
+            //     console.log("Appending data");
+            //     loading = false;
+            //     // Hide the bottom spinner after fetching
+            //     document.getElementById("bottomLoadingSpinner").style.display = "none";
+            //     document.getElementById("noMoreResults").style.display = "block";
+            //     return;
+            // }
 
             lastSearchQuery = currentSearchQuery; // Store the current query for comparison
             noMoreResults = false; // Reset "no more results" flag for new searches
@@ -81,6 +104,7 @@
             document.getElementById("bottomLoadingSpinner").style.display = "block";
 
             if (!append) {
+                console.log("Resetting page");
                 currentPage = 0;
                 allRecords = [];
                 document.getElementById("noMoreResults").style.display = "none";
@@ -115,6 +139,7 @@
             document.getElementById("bottomLoadingSpinner").style.display = "none";
 
             if (data.features.length === 0) {
+                console.log("No more results");
                 document.getElementById("noMoreResults").style.display = "block";
                 noMoreResults = true; // Prevent further fetching
                 loading = false;
@@ -127,23 +152,45 @@
             loading = false;
         }
 
-        function displayRecords() {
-            const container = document.getElementById("dataContainer");
-            container.innerHTML = "";
-            allRecords.forEach(record => {
-                let addressCleaned = record.PRIMARY_ADDRESS.replace(/,? CLEVELAND,? OH,? \d{5}/i, "");
-                let formattedJobValue = record.JOB_VALUE ? `$${Math.round(record.JOB_VALUE).toLocaleString()}` : "N/A";
-                container.innerHTML += `
-                    <div class="card mb-3 p-2">
-                        <h5 class="card-title">${record.WORK_DESCRIPTION || 'No description'}</h5>
-                        <p class="card-text">
-                            <a href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(record.PRIMARY_ADDRESS)}" target="_blank">${addressCleaned}</a> (${record.DW_Neighborhood || 'N/A'}, Ward ${record.WARD || 'N/A'})
-                        </p>
-                        <p class="card-text">${formattedJobValue} | ${record.CONTRACTOR || 'N/A'}</p>
-                        <small class="text-muted">Permit ${record.PERMIT_ID || 'N/A'} | Filed ${new Date(record.FILE_DATE).toLocaleDateString()}</small>
-                    </div>`;
-            });
-        }
+        function highlightMatch(text, searchTerm) {
+                if (!searchTerm) return text; // No highlight if search is empty
+
+                // Escape special regex characters in searchTerm
+                let escapedTerm = searchTerm.replace(/[-/\\^$*+?.()|[\]{}]/g, "\\$&");
+
+                // Replace matches with a span-wrapped highlighted version
+                let regex = new RegExp(escapedTerm, "gi");
+                return text.replace(regex, (match) => `<span class="highlight">${match}</span>`);
+            }
+
+            function displayRecords() {
+                const container = document.getElementById("dataContainer");
+                container.innerHTML = "";
+
+                // Get search input values
+                const searchQuery = document.getElementById("searchInput").value.trim();
+                const addressQuery = document.getElementById("addressSearchInput").value.trim();
+
+                allRecords.forEach(record => {
+                    let addressCleaned = record.PRIMARY_ADDRESS.replace(/,? CLEVELAND,? OH,? \d{5}/i, "");
+                    let formattedJobValue = record.JOB_VALUE ? `$${Math.round(record.JOB_VALUE).toLocaleString()}` : "N/A";
+
+                    // Highlight matches in WORK_DESCRIPTION and ADDRESS
+                    let highlightedDescription = highlightMatch(record.WORK_DESCRIPTION || 'No description', searchQuery);
+                    let highlightedAddress = highlightMatch(addressCleaned, addressQuery);
+
+                    container.innerHTML += `
+            <div class="card mb-3 p-2">
+                <p class="card-text">
+                    <a href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(record.PRIMARY_ADDRESS)}" target="_blank">${highlightedAddress}</a> 
+                    (${record.DW_Neighborhood || 'N/A'}, Ward ${record.WARD || 'N/A'})
+                </p>
+                <h5 class="card-title">${highlightedDescription}</h5>
+                <p class="card-text">${formattedJobValue} | ${record.CONTRACTOR || 'N/A'}</p>
+                <small class="text-muted">Permit ${record.PERMIT_ID || 'N/A'} | Filed ${new Date(record.FILE_DATE).toLocaleDateString()}</small>
+            </div>`;
+                });
+            }
 
         let scrollTimeout;
 
@@ -153,11 +200,11 @@
                 clearTimeout(scrollTimeout);
             }
             scrollTimeout = setTimeout(() => {
-                if ((window.innerHeight + window.scrollY) >= document.body.offsetHeight - 100) {
+                if ((window.innerHeight + window.scrollY) >= document.body.offsetHeight - 700) {
                     currentPage++;
                     fetchData(true);
                 }
-            }, 200); // Adjust debounce time as needed
+            }, 50); // Adjust debounce time as needed
         }
 
         function resetAndFetchData() {
@@ -181,6 +228,9 @@
             document.getElementById("neighborhoodFilter").selectedIndex = 0;
             document.getElementById("subtypeFilter").selectedIndex = 0;
 
+            const filterIndicator = document.getElementById("filterIndicator");
+            filterIndicator.style.display = "none"; // Hide dot
+
             // Reset pagination and fetch fresh data
             currentPage = 0;
             fetchData();
@@ -201,7 +251,7 @@
             if (searchQuery) filters.push(`Work: "${searchQuery}"`);
             if (addressQuery) filters.push(`Address: "${addressQuery}"`);
 
-            const summaryText = filters.length ? `<i class="bi bi-search"></i> ${filters.join(", ")}` : "";
+            const summaryText = filters.length ? `Filtering by: ${filters.join(", ")}` : "";
 
             document.getElementById("querySummary").innerHTML = summaryText;
         }
@@ -238,10 +288,14 @@
             // Function to trigger search when Enter is pressed
             function handleEnterKey(event) {
                 if (event.key === "Enter") {
-                    event.preventDefault(); // Prevent form submission
-                    searchButton.click(); // Trigger search button click
+                    event.preventDefault(); // Prevent default behavior (e.g., moving focus)
+                    searchAndCloseNav(); // Run search instead of moving to the next input
                 }
             }
+
+            // Apply the event listener to all search inputs
+            document.getElementById("addressSearchInput").addEventListener("keypress", handleEnterKey);
+            document.getElementById("searchInput").addEventListener("keypress", handleEnterKey);
 
             let searchButton = document.querySelector(".btn-primary"); // Select the search button
             // Add event listener to all input fields inside the navbar
@@ -253,16 +307,46 @@
         window.onload = function () {
             fetchData();
             window.addEventListener("scroll", handleScroll);
+            document.querySelectorAll("#filterMenu input, #filterMenu select").forEach(element => {
+                element.addEventListener("input", updateFilterIndicator);
+            });
+            document.querySelectorAll("#filterMenu input, #filterMenu select").forEach(element => {
+                element.addEventListener("input", updateFilterIndicator);
+            });
         };
+
+        function updateFilterIndicator() {
+                const filterIndicator = document.getElementById("filterIndicator");
+
+                // Check if any filters are active (not default values)
+                const category = document.getElementById("categoryFilter").value;
+                const neighborhood = document.getElementById("neighborhoodFilter").value;
+                const subtype = document.getElementById("subtypeFilter").value;
+                const searchQuery = document.getElementById("searchInput").value.trim();
+                const addressQuery = document.getElementById("addressSearchInput").value.trim();
+
+                if (category || neighborhood || subtype || searchQuery || addressQuery) {
+                    console.log("Filters active");
+                    filterIndicator.style.display = "block"; // Show dot
+                } else {
+                    console.log("No filters active");
+                    filterIndicator.style.display = "none"; // Hide dot
+                }
+            }
+
+        // Call updateFilterIndicator whenever filters change
+        
     </script>
 </head>
 <body class="container mt-4">
     <div id="overlay"></div>
-    <nav class="navbar navbar-light bg-light fixed-top">
+    <div class="navbar navbar-light bg-light fixed-top">
         <div class="container-fluid">
-            <a class="navbar-brand" href="#">🛠️ Building Permits Viewer</a>
-            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#filterMenu" aria-controls="filterMenu" aria-expanded="false" aria-label="Toggle navigation">
-                <span class="bi bi-funnel"></span>
+            <a class="navbar-brand" href="#">🛠️ Cleveland B&H Permits</a>
+            <button id="filterToggle" class="navbar-toggler position-relative" type="button" data-bs-toggle="collapse"
+                data-bs-target="#filterMenu" aria-controls="filterMenu" aria-expanded="false" aria-label="Toggle navigation">
+                <i class="bi bi-funnel"></i>
+                <span id="filterIndicator" class="filter-dot"></span> <!-- Small colored dot -->
             </button>
             <div class="collapse navbar-collapse" id="filterMenu">
                 <div class="navbar-nav">
@@ -323,20 +407,77 @@
                         <button class="btn btn-danger w-100" onclick="clearFilters()">
                             <i class="bi bi-x-circle"></i> Clear
                         </button>
+                        <button class="btn btn-outline-success w-100" data-bs-toggle="modal" data-bs-target="#faqModal">
+                            <i class="bi bi-question-circle"></i> FAQ
+                        </button>
                     </div>
                 </div>
             </div>
         </div>
-    </nav>
+    </div>
     <div id="querySummary" class="text-muted small mb-2 query-summary"></div>
     <div class="content-container" id="dataContainer"></div>
     <div id="bottomLoadingSpinner" class="text-center mt-3" style="display: none;">
         <div class="spinner-border text-primary" role="status">
             <span class="visually-hidden">Loading more...</span>
         </div>
+        <p class="mt-2">One moment please...</p>
     </div>
     <div id="noMoreResults" class="text-center mt-3" style="display: none;">
         <p>No more results available.</p>
+    </div>
+
+    <!-- FAQ Modal -->
+    <div class="modal fade" id="faqModal" tabindex="-1" aria-labelledby="faqModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-fullscreen">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="faqModalLabel">Frequently Asked Questions</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body overflow-auto">
+                    <h6>1. What is the purpose of this website?</h6>
+                    <p>This website allows you to quickly learn about permitted work planned in your area. You can see
+                        details such as the type of work, estimated cost, and contractors involved.</p>
+    
+                    <h6>2. Where does the data come from?</h6>
+                    <p>The data is provided by the <strong>City of Cleveland's Open Data Portal</strong>. We greatly
+                        appreciate the City for making this information publicly available.</p>
+                    <p><a href="https://data.clevelandohio.gov/datasets/ClevelandGIS::building-permits/about"
+                            target="_blank">View the data portal</a></p>
+    
+                    <h6>3. How does this website work?</h6>
+                    <p>This site pulls data directly from the City's Open Data Portal and presents it in an easy-to-use
+                        interface. Data is updated in real-time as new permits are issued.</p>
+    
+                    <h6>4. Who built this project?</h6>
+                    <p>This project was created by <strong>Angelo Trivisonno</strong>. You can find the source code and contribute to the project on GitHub:</p>
+                    <p><a href="https://github.com/trivisonno/building-permit-v1" target="_blank">View the GitHub repository</a></p>
+    
+                    <h6>5. How do I search for permits?</h6>
+                    <p>Enter a work description or address in the search filters, then click the "Search" button. You can also filter by permit category, neighborhood, and type.</p>
+    
+                    <h6>6. How do I filter results?</h6>
+                    <p>Use the dropdown filters to refine results based on Permit Category, Neighborhood, and Permit Type.
+                    </p>
+    
+                    <h6>7. Why am I not seeing any results?</h6>
+                    <p>Try clearing filters or adjusting your search terms. Data availability depends on what the City has
+                        published.</p>
+    
+                    <h6>8. How do I load more results?</h6>
+                    <p>Scroll to the bottom of the page, and if more results are available, they will load automatically.
+                    </p>
+    
+                    <h6>9. How do I reset my filters?</h6>
+                    <p>Click the red "Clear" button to reset all filters and search fields.</p>
+    
+                    <h6>10. Will there be more functionality in the future?</h6>
+                    <p>Yes! As the City continues to expand the data it shares, we will add more features to improve
+                        accessibility and insights.</p>
+                </div>
+            </div>
+        </div>
     </div>
 </body>
 </html>
