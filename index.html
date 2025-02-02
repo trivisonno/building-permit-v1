@@ -155,7 +155,7 @@
 
             // Log the search if any filter is used
             if (filterCategory || filterNeighborhood || filterSubtype || searchQuery !== "%%" || addressQuery !== "%" || sortOrder !== "FILE_DATE DESC") {
-                logSearchQuery(filterCategory, filterNeighborhood, filterSubtype, searchQuery, addressQuery, sortOrder, resultOffset, append);
+                logSearchQuery(filterCategory, filterNeighborhood, filterSubtype, searchQuery, addressQuery, sortOrder);
             }
             
             const response = await fetch(`${url}?${params}`);
@@ -495,8 +495,6 @@
                     .then(data => console.log("Logged:", data))
                     .catch(err => console.error("Log Error:", err));
                 }
-
-              
     </script>
 </head>
 <body class="container mt-4">
@@ -583,7 +581,7 @@
                             <i class="bi bi-search"></i> Search
                         </button>
                         <button class="btn btn-danger w-100 mb-2" onclick="clearFilters()">
-                            <i class="bi bi-x-circle"></i> Clear
+                            <i class="bi bi-x-circle"></i> Clear filters
                         </button>
                         <button id="faqButton" class="btn btn-outline-success w-100 mb-2" data-bs-toggle="modal" data-bs-target="#faqModal">
                             <i class="bi bi-question-circle"></i> FAQ
