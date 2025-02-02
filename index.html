@@ -73,7 +73,7 @@
         let loading = false;
         let lastSearchQuery = ""; // Stores the last executed query
         let noMoreResults = false; // Flag to prevent further unnecessary fetches
-
+        const sessionUUID = crypto.randomUUID(); // Generate a unique session ID
 
 
         async function fetchData(append = false) {
@@ -90,25 +90,34 @@
             const addressQuery = document.getElementById("addressSearchInput").value.trim().replace(/\s+/g, "%");
             const sortOrder = document.getElementById("sortOrder").value; // Get selected sort order
 
+            const resultOffset = append ? (currentPage * recordsPerPage) : 0; // Track pagination
+
+            // Create a search query string to check if anything has changed
+            const currentSearchQuery = JSON.stringify({
+                filterCategory,
+                filterNeighborhood,
+                filterSubtype,
+                searchQuery,
+                addressQuery,
+                sortOrder,
+                resultOffset,
+                append
+            });
+
+            
+
             // Show the bottom spinner when appending more data
             if (append) {
                 document.getElementById("bottomLoadingSpinner").style.display = "block";
             }
 
-            // Create a search query string to check if anything has changed
-            const currentSearchQuery = JSON.stringify({
-                filterCategory, filterNeighborhood, filterSubtype, searchQuery, addressQuery
-            });
 
-            // Stop further fetches if the query is the same and appending data
-            // if (append && currentSearchQuery === lastSearchQuery) {
-            //     console.log("Appending data");
-            //     loading = false;
-            //     // Hide the bottom spinner after fetching
-            //     document.getElementById("bottomLoadingSpinner").style.display = "none";
-            //     document.getElementById("noMoreResults").style.display = "block";
-            //     return;
-            // }
+            // Prevent re-running the same query when clicking Search
+            if (!append && currentSearchQuery === lastSearchQuery) {
+                console.log("Same search query, not re-running fetchData.");
+                loading = false;
+                return;
+            }
 
             lastSearchQuery = currentSearchQuery; // Store the current query for comparison
             noMoreResults = false; // Reset "no more results" flag for new searches
@@ -143,6 +152,11 @@
                 resultRecordCount: recordsPerPage,
                 f: "json"
             });
+
+            // Log the search if any filter is used
+            if (filterCategory || filterNeighborhood || filterSubtype || searchQuery !== "%%" || addressQuery !== "%" || sortOrder !== "FILE_DATE DESC") {
+                logSearchQuery(filterCategory, filterNeighborhood, filterSubtype, searchQuery, addressQuery, sortOrder, resultOffset, append);
+            }
             
             const response = await fetch(`${url}?${params}`);
             const data = await response.json();
@@ -442,6 +456,41 @@
                     new bootstrap.Tooltip(tooltipTriggerEl);
                 });
             }
+
+
+        async function logSearchQuery(filterCategory, filterNeighborhood, filterSubtype, searchQuery, addressQuery, sortOrder, resultOffset, append) {
+                const logData = {
+                    records: [{
+                        fields: {
+                            "Session UUID": sessionUUID, // Include session ID
+                            "User-Agent": navigator.userAgent, // Browser & device info
+                            "Screen Width": window.screen.width, // User's screen width
+                            "Screen Height": window.screen.height, // User's screen height
+                            "Category": filterCategory || "",
+                            "Neighborhood": filterNeighborhood || "",
+                            "Subtype": filterSubtype || "",
+                            "Search Query": searchQuery.replace(/%/g, "").trim() || "",
+                            "Address Query": addressQuery.replace(/%/g, "").trim() || "",
+                            "Sort Order": sortOrder || "",
+                            "Result Offset": resultOffset, // Log pagination offset
+                            "Append": append // Log append status
+                        }
+                    }]
+                };
+
+                const url = `https://api.airtable.com/v0/${atob("YXBwd0VsSEZFekFKNWRpRno=")}/Logs`; // Base ID
+                const apiKey = `Bearer ${atob("cGF0RkFucm91UTNYQUZ5VGYuZjM5YzUyOTVjNjYxMDc2Y2EyOTZhNWQyMmEwNWI4NWIxYTFkYzkwYzVmYzIyNjA0MzBkNTdjODUxYTlhNDNkZQ==")}`;
+
+                
+                
+                fetch(url, {
+                    method: "POST",
+                    headers: { "Authorization": "Bearer patFAnrouQ3XAFyTf.f39c5295c661076ca296a5d22a05b85b1a1dc90c5fc2260430d57c851aca43de", "Content-Type": "application/json" },
+                    body: JSON.stringify(logData)
+                }).then(res => res.json())
+                    .then(data => console.log("Logged:", data))
+                    .catch(err => console.error("Log Error:", err));
+                }
     </script>
 </head>
 <body class="container mt-4">
