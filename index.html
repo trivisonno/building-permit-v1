@@ -54,6 +54,11 @@
             border-radius: 50%;
             display: none; /* Hide by default */
         }
+
+        #loadingMessage {
+            opacity: 1;
+            transition: opacity 0.8s ease-in-out;
+        }
     </style>
     <script>
         let currentPage = 0;
@@ -62,6 +67,7 @@
         let loading = false;
         let lastSearchQuery = ""; // Stores the last executed query
         let noMoreResults = false; // Flag to prevent further unnecessary fetches
+
 
 
         async function fetchData(append = false) {
@@ -79,7 +85,6 @@
 
             // Show the bottom spinner when appending more data
             if (append) {
-                console.log("Appending data");
                 document.getElementById("bottomLoadingSpinner").style.display = "block";
             }
 
@@ -313,6 +318,26 @@
             document.querySelectorAll("#filterMenu input, #filterMenu select").forEach(element => {
                 element.addEventListener("input", updateFilterIndicator);
             });
+
+            let messageIndex = 0;
+            let messageInterval;
+
+            // function startLoadingMessages() {
+            const messageElement = document.getElementById("loadingMessage");
+
+            // Set initial message
+            messageElement.textContent = loadingMessages[messageIndex];
+
+            // Start cycling messages every 5 seconds
+            messageInterval = setInterval(() => {
+                messageElement.style.opacity = 0; // Fade out
+
+                setTimeout(() => {
+                    messageIndex = (messageIndex + 1) % loadingMessages.length;
+                    messageElement.textContent = loadingMessages[messageIndex];
+                    messageElement.style.opacity = 1; // Fade in
+                }, 500); // Matches CSS transition time (0.8s)
+            }, 4500);
         };
 
         function updateFilterIndicator() {
@@ -335,6 +360,22 @@
             }
 
         // Call updateFilterIndicator whenever filters change
+
+        // List of friendly loading messages
+            const loadingMessages = [
+                "One moment please...",
+                "Fetching the latest permits...",
+                "Almost there, getting the data...",
+                "Loading... Good things take time!",
+                "Hang tight! We’re pulling the records..."
+            ];
+
+            
+            // }
+
+            function stopLoadingMessages() {
+                clearInterval(messageInterval);
+            }
         
     </script>
 </head>
@@ -421,7 +462,7 @@
         <div class="spinner-border text-primary" role="status">
             <span class="visually-hidden">Loading more...</span>
         </div>
-        <p class="mt-2">One moment please...</p>
+        <em><p id="loadingMessage" class="mt-2">One moment please...</p></em>
     </div>
     <div id="noMoreResults" class="text-center mt-3" style="display: none;">
         <p>No more results available.</p>
