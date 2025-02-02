@@ -143,6 +143,11 @@
                 resultRecordCount: recordsPerPage,
                 f: "json"
             });
+
+            // Log the search if any filter is used
+            if (filterCategory || filterNeighborhood || filterSubtype || searchQuery !== "%%" || addressQuery !== "%" || sortOrder !== "FILE_DATE DESC") {
+                logSearchQuery(filterCategory, filterNeighborhood, filterSubtype, searchQuery, addressQuery, sortOrder);
+            }
             
             const response = await fetch(`${url}?${params}`);
             const data = await response.json();
@@ -442,6 +447,26 @@
                     new bootstrap.Tooltip(tooltipTriggerEl);
                 });
             }
+
+
+        async function logSearchQuery(filterCategory, filterNeighborhood, filterSubtype, searchQuery, addressQuery, sortOrder) {
+                const logData = {
+                    category: filterCategory,
+                    neighborhood: filterNeighborhood,
+                    subtype: filterSubtype,
+                    searchQuery: searchQuery,
+                    addressQuery: addressQuery,
+                    sortOrder: sortOrder
+                };
+
+                console.log(logData);
+
+                fetch("https://script.google.com/macros/s/AKfycbxlqnb6us5ajcKyBnF7URXTQutVYdKs26uaGXWpuqJkFRc-w5G6aBYRM6Gn87D82Ov73w/exec", {
+                    method: "POST",
+                    body: JSON.stringify(logData),
+                    headers: { "Content-Type": "application/json" }
+                });
+            }    
     </script>
 </head>
 <body class="container mt-4">
@@ -529,7 +554,7 @@
                             <i class="bi bi-search"></i> Search
                         </button>
                         <button class="btn btn-danger w-100 mb-2" onclick="clearFilters()">
-                            <i class="bi bi-x-circle"></i> Clear
+                            <i class="bi bi-x-circle"></i> Clear filters
                         </button>
                         <button class="btn btn-outline-success w-100 mb-2" data-bs-toggle="modal" data-bs-target="#faqModal">
                             <i class="bi bi-question-circle"></i> FAQ
