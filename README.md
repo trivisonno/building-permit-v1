@@ -2,7 +2,7 @@
 *A web app to explore building permits in Cleveland, OH using real-time data from the city's open data portal.*
 
 ![Project Screenshot](sample.gif)  
-*(Replace this with an actual screenshot of your project)*
+
 
 ---
 
