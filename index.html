@@ -156,7 +156,7 @@
 
             // Log the search if any filter is used
             if (filterCategory || filterNeighborhood || filterSubtype || searchQuery !== "%%" || addressQuery !== "%" || sortOrder !== "FILE_DATE DESC") {
-                logSearchQuery(filterCategory, filterNeighborhood, filterSubtype, searchQuery, addressQuery, sortOrder);
+                logSearchQuery(filterCategory, filterNeighborhood, filterSubtype, searchQuery, addressQuery, sortOrder, currentPage * recordsPerPage, append);
             }
             
             const response = await fetch(`${url}?${params}`);
