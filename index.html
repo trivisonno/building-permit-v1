@@ -73,7 +73,7 @@
         let loading = false;
         let lastSearchQuery = ""; // Stores the last executed query
         let noMoreResults = false; // Flag to prevent further unnecessary fetches
-        const sessionUUID = crypto.randomUUID(); // Generate a unique session ID
+        const sessionUUID = generateUUID(); // Generate a unique session ID
 
 
         async function fetchData(append = false) {
@@ -495,6 +495,18 @@
                     .then(data => console.log("Logged:", data))
                     .catch(err => console.error("Log Error:", err));
                 }
+
+                function generateUUID() {
+                        if (window.crypto && crypto.randomUUID) {
+                            return crypto.randomUUID(); // Native method (modern browsers)
+                        } else {
+                            return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) {
+                                const r = (Math.random() * 16) | 0,
+                                    v = c === 'x' ? r : (r & 0x3) | 0x8;
+                                return v.toString(16);
+                            });
+                        }
+                    }
     </script>
 </head>
 <body class="container mt-4">
@@ -510,7 +522,7 @@
             <div class="collapse navbar-collapse" id="filterMenu">
                 <div class="navbar-nav">
                     <div class="input-group me-2 mb-2">
-                        <label for="sortOrder" class="input-group-text">Sort</label>
+                        <label for="sortOrder" class="input-group-text"><i class="bi bi-arrow-down-up"></i>&nbsp;&nbsp;Sort By </label>
                         <select id="sortOrder" class="form-select" onchange="fetchData()">
                             <option value="FILE_DATE DESC">Newest First</option>
                             <option value="FILE_DATE ASC">Oldest First</option>
