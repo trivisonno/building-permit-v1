@@ -1,5 +1,6 @@
 # 🛠️ Cleveland Building Permits Viewer
 *A web app to explore building permits in Cleveland, OH using real-time data from the city's open data portal.*
+# [➡️ **Use the Cleveland Building Permits Viewer** ⬅️](https://trivisonno.github.io/building-permit-v1/)
 
 ![Project Screenshot](sample.gif)  
 
