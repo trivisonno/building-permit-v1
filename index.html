@@ -109,6 +109,7 @@
             // Show the bottom spinner when appending more data
             if (append) {
                 document.getElementById("bottomLoadingSpinner").style.display = "block";
+                currentPage++;
             }
 
 
@@ -260,7 +261,6 @@
             }
             scrollTimeout = setTimeout(() => {
                 if ((window.innerHeight + window.scrollY) >= document.body.offsetHeight - 700) {
-                    currentPage++;
                     fetchData(true);
                 }
             }, 50); // Adjust debounce time as needed
