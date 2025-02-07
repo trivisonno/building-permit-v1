@@ -74,6 +74,7 @@
         let lastSearchQuery = ""; // Stores the last executed query
         let noMoreResults = false; // Flag to prevent further unnecessary fetches
         const sessionUUID = generateUUID(); // Generate a unique session ID
+        let today = new Date().toISOString().split("T")[0];
 
 
         async function fetchData(append = false) {
@@ -86,9 +87,13 @@
             const filterCategory = document.getElementById("categoryFilter").value;
             const filterNeighborhood = document.getElementById("neighborhoodFilter").value;
             const filterSubtype = document.getElementById("subtypeFilter").value;
-            const searchQuery = `%${document.getElementById("searchInput").value.trim()}%`;
+            const searchQuery = `${document.getElementById("searchInput").value.trim()}`;
             const addressQuery = document.getElementById("addressSearchInput").value.trim().replace(/\s+/g, "%");
             const sortOrder = document.getElementById("sortOrder").value; // Get selected sort order
+            const jobValueMin = document.getElementById("jobValueMin").value;
+            const jobValueMax = document.getElementById("jobValueMax").value;
+            const yearMin = document.getElementById("yearMin").value;
+            const yearMax = document.getElementById("yearMax").value;
 
             const resultOffset = append ? (currentPage * recordsPerPage) : 0; // Track pagination
 
@@ -101,7 +106,11 @@
                 addressQuery,
                 sortOrder,
                 resultOffset,
-                append
+                append,
+                jobValueMin,
+                jobValueMax,
+                yearMin,
+                yearMax
             });
 
             
@@ -143,6 +152,10 @@
             if (filterSubtype) whereClauses.push(`PERMIT_SUBTYPE='${filterSubtype.replace(/'/g, "''")}'`);
             if (searchQuery) whereClauses.push(`WORK_DESCRIPTION LIKE '%${searchQuery.replace(/'/g, "''" )}%'`);
             if (addressQuery) whereClauses.push(`PRIMARY_ADDRESS LIKE '%${addressQuery.replace(/'/g, "''")}%'`);
+            if (jobValueMin) whereClauses.push(`JOB_VALUE >= ${jobValueMin}`);
+            if (jobValueMax) whereClauses.push(`JOB_VALUE <= ${jobValueMax}`);
+            if (yearMin !== '01/01/2000' || yearMin !== "") whereClauses.push(`FILE_DATE >= '${yearMin}'`);
+            if (yearMax !== today || yearMax !== "") whereClauses.push(`FILE_DATE <= '${yearMax}'`);
             
             
             const params = new URLSearchParams({
@@ -155,7 +168,7 @@
             });
 
             // Log the search if any filter is used
-            if (filterCategory || filterNeighborhood || filterSubtype || searchQuery !== "%%" || addressQuery !== "%" || sortOrder !== "FILE_DATE DESC") {
+            if (filterCategory || filterNeighborhood || filterSubtype || searchQuery !== "%%" || addressQuery !== "%" || sortOrder !== "FILE_DATE DESC" || jobValueMin || jobValueMax || (yearMin !== "01/01/2000" && yearMin !== "" ) || yearMax) {
                 logSearchQuery(filterCategory, filterNeighborhood, filterSubtype, searchQuery, addressQuery, sortOrder, currentPage * recordsPerPage, append);
             }
             
@@ -241,7 +254,7 @@
                                 <small class="text-muted">
                                     ${subtypeIcon} Permit 
                                     <a href="${permitApiUrl}" target="_blank" class="permit-link">${record.PERMIT_ID || 'N/A'}</a> | 
-                                    Filed ${new Date(record.FILE_DATE).toLocaleDateString()}
+                                    Filed ${new Date(record.FILE_DATE + (new Date().getTimezoneOffset() * 60000)).toLocaleDateString("en-US", { timeZone: "America/New_York"})}
                                 </small>
                             </div>
                         </div>`;
@@ -288,6 +301,10 @@
             document.getElementById("categoryFilter").selectedIndex = 0;
             document.getElementById("neighborhoodFilter").selectedIndex = 0;
             document.getElementById("subtypeFilter").selectedIndex = 0;
+            document.getElementById("jobValueMin").value = "01/01/2000";
+            document.getElementById("jobValueMax").value = today;
+            document.getElementById("yearMin").value = "";
+            document.getElementById("yearMax").value = "";
 
             const filterIndicator = document.getElementById("filterIndicator");
             filterIndicator.style.display = "none"; // Hide dot
@@ -306,12 +323,21 @@
             const searchQuery = document.getElementById("searchInput").value.trim();
             const addressQuery = document.getElementById("addressSearchInput").value.trim();
             const sortOrder = document.getElementById("sortOrder").value;
+            const jobValueMin = document.getElementById("jobValueMin").value;
+            const jobValueMax = document.getElementById("jobValueMax").value;
+            const yearMin = document.getElementById("yearMin").value;
+            const yearMax = document.getElementById("yearMax").value;
+            
 
             if (category) filters.push(`Category: ${category}`);
             if (neighborhood) filters.push(`Neighborhood: ${neighborhood}`);
             if (subtype) filters.push(`Type: ${subtype}`);
             if (searchQuery) filters.push(`Work: "${searchQuery}"`);
             if (addressQuery) filters.push(`Address: "${addressQuery}"`);
+            if (jobValueMin) filters.push(`Job Value Min: $${jobValueMin}`);
+            if (jobValueMax) filters.push(`Job Value Max: $${jobValueMax}`);
+            if (yearMin !== '2000-01-01' && yearMin !== "") filters.push(`From Date: ${yearMin}`);
+            if (yearMax !== today && yearMax !== "") filters.push(`To Date: ${yearMax}`);
 
 
             // Map sort values to user-friendly labels (excluding default "Newest First")
@@ -334,6 +360,9 @@
             const filterMenu = document.getElementById("filterMenu");
             const overlay = document.getElementById("overlay");
             const navbarToggler = document.querySelector(".navbar-toggler");
+
+            document.getElementById("yearMax").value = new Date().toISOString().split("T")[0];
+            document.getElementById("yearMin").value = "2000-01-01";
 
             // Function to show overlay with fade-in effect
             function showOverlay() {
@@ -434,8 +463,12 @@
                 const subtype = document.getElementById("subtypeFilter").value;
                 const searchQuery = document.getElementById("searchInput").value.trim();
                 const addressQuery = document.getElementById("addressSearchInput").value.trim();
+                const jobValueMin = document.getElementById("jobValueMin").value;
+                const jobValueMax = document.getElementById("jobValueMax").value;
+                const yearMin = document.getElementById("yearMin").value;
+                const yearMax = document.getElementById("yearMax").value;
 
-                if (category || neighborhood || subtype || searchQuery || addressQuery) {
+                if (category || neighborhood || subtype || searchQuery || addressQuery || jobValueMin || jobValueMax || (yearMin !== '01/01/2000' && yearMin !== "") || yearMax ) {
                     console.log("Filters active");
                     filterIndicator.style.display = "block"; // Show dot
                 } else {
@@ -531,9 +564,9 @@
                         </select>
                     </div>
                     <div class="input-group me-2 mb-2">
-                        <input id="searchInput" type="text" class="form-control" placeholder="Search Work Description"
-                            onchange="resetAndFetchData()">
-                    </div>
+                        <input type="text" id="searchInput" class="form-control" placeholder="Search work description">
+                        <a href="#" data-bs-toggle="modal" data-bs-target="#wildcardHelpModal" class="btn btn-outline-secondary" title="Search Help">?</a>
+</div>
                     <select id="neighborhoodFilter" class="form-select me-2 mb-2" onchange="fetchData()">
                         <option value="">All Neighborhoods</option>
                         <option value="Bellaire-Puritas">Bellaire-Puritas</option>
@@ -587,6 +620,15 @@
                     </select>
                     <div class="input-group me-2 mb-2">
                         <input id="addressSearchInput" type="text" class="form-control" placeholder="Search Address" onchange="resetAndFetchData()">
+                        <a href="#" data-bs-toggle="modal" data-bs-target="#wildcardHelpModal" class="btn btn-outline-secondary" title="Search Help">?</a>
+                    </div>
+                    <div class="d-flex gap-2 me-2 mb-2">
+                        <input type="number" id="jobValueMin" placeholder="Min Job Value ($)" class="form-control">
+                        <input type="number" id="jobValueMax" placeholder="Max Job Value ($)" class="form-control">
+                    </div>
+                    <div class="d-flex gap-2 me-2 mb-2">
+                        <input type="date" id="yearMin" placeholder="01/01/2000" class="form-control">
+                        <input type="date" id="yearMax" class="form-control">
                     </div>
                     <div class="d-grid gap-2 mt-2">
                         <button class="btn btn-primary w-100 mb-2" onclick="searchAndCloseNav()">
@@ -668,6 +710,49 @@
                     <h6>10. Will there be more functionality in the future?</h6>
                     <p>Yes! As the City continues to expand the data it shares, we will add more features to improve
                         accessibility and insights.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+
+    <!-- Wildcard Help Modal -->
+    <div class="modal fade" id="wildcardHelpModal" tabindex="-1" aria-labelledby="wildcardHelpModalLabel"
+        aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="wildcardHelpModalLabel">Use Search with Wildcards</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <p><strong>Note:</strong> You don’t need to add wildcards at the beginning or end of your search—our system does this for you automatically.</p>
+                    <p>However, you can use special symbols to refine your search:</p>
+                    <ul>
+                        <li><strong><code>%</code></strong> – Represents zero or more characters
+                            <br><em>Example:</em> <code>br%</code> finds <code>br</code>, <code>bracelet</code>, <code>break</code>, and
+                            <code>brink</code>.
+                        </li>
+                        <li><strong><code>_</code></strong> – Represents a single character
+                            <br><em>Example:</em> <code>f_r</code> finds <code>far</code>, <code>fir</code>, <code>for</code>, and
+                            <code>fur</code>.
+                        </li>
+                        <li><strong><code>[]</code></strong> – Represents any single character within the brackets
+                            <br><em>Example:</em> <code>s[ia]nk</code> finds <code>sink</code> and <code>sank</code>, but not
+                            <code>sunk</code>.
+                        </li>
+                        <li><strong><code>[^]</code></strong> – Excludes characters inside the brackets
+                            <br><em>Example:</em> <code>s[^ia]nk</code> finds <code>sunk</code>, but not <code>sink</code> or
+                            <code>sank</code>.
+                        </li>
+                        <li><strong><code>[-]</code></strong> – Represents any character within the specified range
+                            <br><em>Example:</em> <code>s[e-o]n</code> finds <code>sin</code> and <code>son</code>, but not
+                            <code>sun</code>.
+                        </li>
+                    </ul>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
                 </div>
             </div>
         </div>
