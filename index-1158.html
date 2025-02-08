@@ -16,7 +16,7 @@
             
             const params = new URLSearchParams({
                 where: whereClauses.join(" AND "),
-                outFields: "PERMIT_ID,PRIMARY_ADDRESS,PERMIT_SUBTYPE,PERMIT_CATEGORY,WORK_DESCRIPTION,CONTRACTOR,JOB_VALUE,FILE_DATE,PARCEL_NUMBER,WARD,DW_Neighborhood",
+                outFields: "PERMIT_ID,PRIMARY_ADDRESS,PERMIT_SUBTYPE,PERMIT_CATEGORY,WORK_DESCRIPTION,CONTRACTOR_NAME,JOB_VALUE,FILE_DATE,PARCEL_NUMBER,WARD,DW_Neighborhood",
                 orderByFields: "FILE_DATE DESC",
                 resultRecordCount: "500",
                 f: "json"
