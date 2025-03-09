@@ -215,8 +215,15 @@
                     let addressCleaned = record.PRIMARY_ADDRESS.replace(/,? CLEVELAND,? OH,? \d{5}/i, "");
                     let formattedJobValue = record.JOB_VALUE ? `$${Math.round(record.JOB_VALUE).toLocaleString()}` : "$-";
 
+                    let contractorBusinessName = record.CONTRATOR_BUSINESS_NAME?.trim() || "";
+                    let contractorHumanName = record.CONTRACTOR_NAME?.trim() || "";
+                    
+
                     // Use CONTRATOR_BUSINESS_NAME if available; otherwise, fall back to CONTRACTOR
-                    let contractorName = record.CONTRATOR_BUSINESS_NAME?.trim() || record.CONTRACTOR_NAME?.trim() || '-';
+                    // let contractorName = record.CONTRATOR_BUSINESS_NAME?.trim() || record.CONTRACTOR_NAME?.trim() || '-';
+                    let contractorLink = contractorBusinessName !== '-'
+                        ? `<a href="#" class="contractor-link" data-bs-toggle="modal" data-bs-target="#contractorModal" onclick="fetchContractorDetails('${contractorBusinessName}', '${contractorHumanName}')">${contractorBusinessName}</a>`
+                        : '-';
 
                     // Determine subtype icon with tooltip
                     let subtypeIcon = '';
@@ -246,7 +253,7 @@
                             <!-- Center section (Work Description - White Background) -->
                             <div class="card-body">
                                 <h5 class="card-title">${highlightedDescription}</h5>
-                                <p class="card-text">${formattedJobValue} | ${contractorName || 'N/A'}</p>
+                                <p class="card-text">${formattedJobValue} | ${contractorLink || 'N/A'}</p>
                             </div>
 
                             <!-- Bottom section (Permit Info) -->
@@ -540,6 +547,76 @@
                             });
                         }
                     }
+
+
+        async function fetchContractorDetails(contractorBusinessName, contractorHumanName) {
+                document.getElementById("contractorError").style.display = "none"; // Hide error initially
+                document.getElementById("contractorBusinessName").innerHTML = contractorBusinessName
+                ? `<a href="https://services3.arcgis.com/dty2kHktVXHrqO8i/arcgis/rest/services/Active_Contractor_Registrations/FeatureServer/0/query?where=BUSINESS_NAME='${encodeURIComponent(contractorBusinessName)}'&outFields=*&f=html" target="_blank">
+        ${contractorBusinessName}
+       </a>`
+                : "N/A";
+                document.getElementById("contractorHumanName").textContent = contractorHumanName || "N/A";
+                document.getElementById("contractorId").textContent = "Loading...";
+                document.getElementById("contractorAddress").textContent = "";
+                document.getElementById("contractorPhone").textContent = "";
+
+                if (!contractorBusinessName) {
+                    document.getElementById("contractorError").style.display = "block";
+                    document.getElementById("contractorId").textContent = "N/A";
+                    return;
+                }
+
+                const apiUrl = "https://services3.arcgis.com/dty2kHktVXHrqO8i/arcgis/rest/services/Active_Contractor_Registrations/FeatureServer/0/query";
+                const params = new URLSearchParams({
+                    where: `BUSINESS_NAME='${contractorBusinessName.replace(/'/g, "''")}'`,
+                    outFields: "B1_ALT_ID,B1_ADDRESS1,B1_ADDRESS2,B1_CITY,B1_STATE,B1_ZIP,B1_PHONE1,RRP_CERTIFICATION_NO",
+                    f: "json"
+                });
+
+                try {
+                    const response = await fetch(`${apiUrl}?${params}`);
+
+                    // Check if response is OK
+                    if (!response.ok) {
+                        throw new Error(`HTTP Error! Status: ${response.status}`);
+                    }
+
+                    const data = await response.json();
+
+                    // Validate that 'features' exists
+                    if (!data || !data.features || data.features.length === 0) {
+                        throw new Error("No contractor data found.");
+                    }
+
+                    const contractor = data.features[0].attributes;
+
+                    document.getElementById("contractorId").textContent = contractor.B1_ALT_ID || "N/A";
+
+                    document.getElementById("contractorAddress").textContent =
+                        [contractor.B1_ADDRESS1, contractor.B1_ADDRESS2, contractor.B1_CITY, contractor.B1_STATE, contractor.B1_ZIP]
+                            .map(field => field ? field.trim() : "")
+                            .filter(field => field !== "")
+                            .join(", ") || "N/A";
+
+                    document.getElementById("contractorPhone").textContent = contractor.B1_PHONE1?.trim() || "N/A";
+
+                    // Handle RRP Certification
+                    let rrpCert = contractor.RRP_CERTIFICATION_NO?.trim();
+                    if (!rrpCert) {
+                        document.getElementById("contractorRRP").textContent = "NO LEAD SAFE RRP INFO";
+                        document.getElementById("rrpLearnMore").style.display = "inline"; // Show link if not certified
+                    } else {
+                        document.getElementById("contractorRRP").textContent = rrpCert;
+                    }
+                    console.log("rrpCert: ", rrpCert);
+
+                } catch (error) {
+                    console.error("Error fetching contractor data:", error.message);
+                    document.getElementById("contractorError").style.display = "block";
+                    document.getElementById("contractorId").textContent = "Error";
+                }
+            } 
     </script>
 </head>
 <body class="container mt-4">
@@ -710,6 +787,32 @@
                     <h6>10. Will there be more functionality in the future?</h6>
                     <p>Yes! As the City continues to expand the data it shares, we will add more features to improve
                         accessibility and insights.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+
+
+    <!-- Contractor Details Modal -->
+    <div class="modal fade" id="contractorModal" tabindex="-1" aria-labelledby="contractorModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="contractorModalLabel">Contractor Details</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <p><strong>Business Name:</strong> <span id="contractorBusinessName"></span></p>
+                    <p><strong>Contractor Name:</strong> <span id="contractorHumanName"></span></p>
+                    <p><strong>Registration ID:</strong> <span id="contractorId"></span></p>
+                    <p><strong>Address:</strong> <span id="contractorAddress"></span></p>
+                    <p><strong>Phone:</strong> <span id="contractorPhone"></span></p>
+                    <p><strong>Lead Safe:</strong> <span id="contractorRRP"></span> <a id="rrpLearnMore" href="https://leadsafecle.org/property-owners/find-lead-safe-worker" target="_blank"
+                        style="display: none;">
+                        <br><small><em>(Learn about Lead Safe RRP)</em></small>
+                    </a></p>
+                    <div id="contractorError" class="text-danger" style="display: none;">Contractor details not found.</div>
                 </div>
             </div>
         </div>
