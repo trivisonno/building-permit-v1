@@ -6,6 +6,7 @@
     <title>🛠️ Cleveland Building Permits</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons/font/bootstrap-icons.css">
+    <script data-goatcounter="https://building-permit-v1.goatcounter.com/count" async src="//gc.zgo.at/count.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <style>
         #loadingSpinner {
@@ -65,6 +66,12 @@
             color: inherit; /* Keep the same color as surrounding text */
             cursor: pointer; /* Indicate it's clickable */
         }
+
+        @media (max-width: 767.98px) {
+            .fees-paid {
+                display: none !important;
+            }
+        }
     </style>
     <script>
         let currentPage = 0;
@@ -89,6 +96,7 @@
             const filterSubtype = document.getElementById("subtypeFilter").value;
             const searchQuery = `${document.getElementById("searchInput").value.trim()}`;
             const addressQuery = document.getElementById("addressSearchInput").value.trim().replace(/\s+/g, "%");
+            const contractorNameQuery = document.getElementById("contractorNameInput").value.trim().replace(/\s+/g, "%"); // NEW FIELD
             const sortOrder = document.getElementById("sortOrder").value; // Get selected sort order
             const jobValueMin = document.getElementById("jobValueMin").value;
             const jobValueMax = document.getElementById("jobValueMax").value;
@@ -104,6 +112,7 @@
                 filterSubtype,
                 searchQuery,
                 addressQuery,
+                contractorNameQuery, // NEW FIELD
                 sortOrder,
                 resultOffset,
                 append,
@@ -150,17 +159,27 @@
             if (filterCategory) whereClauses.push(`PERMIT_CATEGORY='${filterCategory.replace(/'/g, "''")}'`);
             if (filterNeighborhood) whereClauses.push(`DW_Neighborhood='${filterNeighborhood.replace(/'/g, "''")}'`);
             if (filterSubtype) whereClauses.push(`PERMIT_SUBTYPE='${filterSubtype.replace(/'/g, "''")}'`);
-            if (searchQuery) whereClauses.push(`WORK_DESCRIPTION LIKE '%${searchQuery.replace(/'/g, "''" )}%'`);
+
+            // Special logic: if searchInput matches B/E/H + numbers, search both WORK_DESCRIPTION and PERMIT_ID
+            let searchPattern = /^[BEH]\d+$/i;
+            if (searchQuery && searchPattern.test(searchQuery)) {
+                let safeSearch = searchQuery.replace(/'/g, "''");
+                whereClauses.push(`(WORK_DESCRIPTION LIKE '%${safeSearch}%' OR PERMIT_ID LIKE '%${safeSearch}%')`);
+            } else if (searchQuery) {
+                whereClauses.push(`WORK_DESCRIPTION LIKE '%${searchQuery.replace(/'/g, "''" )}%'`);
+            }
+
             if (addressQuery) whereClauses.push(`PRIMARY_ADDRESS LIKE '%${addressQuery.replace(/'/g, "''")}%'`);
+            if (contractorNameQuery) whereClauses.push(`CONTRATOR_BUSINESS_NAME LIKE '%${contractorNameQuery.replace(/'/g, "''")}%'`); // NEW FIELD
             if (jobValueMin) whereClauses.push(`JOB_VALUE >= ${jobValueMin}`);
             if (jobValueMax) whereClauses.push(`JOB_VALUE <= ${jobValueMax}`);
-            if (yearMin !== '01/01/2000' || yearMin !== "") whereClauses.push(`FILE_DATE >= '${yearMin}'`);
-            if (yearMax !== today || yearMax !== "") whereClauses.push(`FILE_DATE <= '${yearMax}'`);
+            if (yearMin) whereClauses.push(`FILE_DATE >= '${yearMin}'`);
+            if (yearMax) whereClauses.push(`FILE_DATE <= '${yearMax}'`);
             
             
             const params = new URLSearchParams({
                 where: whereClauses.join(" AND "),
-                outFields: "PERMIT_ID,PRIMARY_ADDRESS,PERMIT_SUBTYPE,PERMIT_CATEGORY,WORK_DESCRIPTION,CONTRACTOR_NAME,CONTRATOR_BUSINESS_NAME,JOB_VALUE,FILE_DATE,PARCEL_NUMBER,DW_Ward,DW_Neighborhood",
+                outFields: "PERMIT_ID,PRIMARY_ADDRESS,PERMIT_SUBTYPE,PERMIT_CATEGORY,WORK_DESCRIPTION,CONTRACTOR_NAME,CONTRATOR_BUSINESS_NAME,JOB_VALUE,FILE_DATE,PARCEL_NUMBER,DW_Ward,DW_Neighborhood,TOTAL_FEES_PAID",
                 orderByFields: sortOrder, // Use selected sorting order
                 resultOffset: currentPage * recordsPerPage,
                 resultRecordCount: recordsPerPage,
@@ -168,8 +187,8 @@
             });
 
             // Log the search if any filter is used
-            if (filterCategory || filterNeighborhood || filterSubtype || searchQuery !== "%%" || addressQuery !== "%" || sortOrder !== "FILE_DATE DESC" || jobValueMin || jobValueMax || (yearMin !== "01/01/2000" && yearMin !== "" ) || yearMax) {
-                logSearchQuery(filterCategory, filterNeighborhood, filterSubtype, searchQuery, addressQuery, sortOrder, currentPage * recordsPerPage, append);
+            if (filterCategory || filterNeighborhood || filterSubtype || searchQuery !== "%%" || addressQuery !== "%" || contractorNameQuery !== "" || sortOrder !== "FILE_DATE DESC" || jobValueMin || jobValueMax || (yearMin !== "01/01/2000" && yearMin !== "" ) || yearMax) {
+                logSearchQuery(filterCategory, filterNeighborhood, filterSubtype, searchQuery, addressQuery, contractorNameQuery, sortOrder, currentPage * recordsPerPage, append);
             }
             
             const response = await fetch(`${url}?${params}`);
@@ -211,18 +230,30 @@
                 const searchQuery = document.getElementById("searchInput").value.trim();
                 const addressQuery = document.getElementById("addressSearchInput").value.trim();
 
+                // Permit number pattern
+                let searchPattern = /^[BEH]\d+$/i;
+
                 allRecords.forEach(record => {
-                    let addressCleaned = record.PRIMARY_ADDRESS.replace(/,? CLEVELAND,? OH,? \d{5}/i, "");
+                    // Only take substring before "CLEVELAND, OH" (case-insensitive)
+                    let addressCleaned = record.PRIMARY_ADDRESS;
+                    if (addressCleaned) {
+                        let idx = addressCleaned.toUpperCase().indexOf(", CLEVELAND, OH");
+                        if (idx !== -1) {
+                            addressCleaned = addressCleaned.substring(0, idx).trim();
+                        }
+                    }
                     let formattedJobValue = record.JOB_VALUE ? `$${Math.round(record.JOB_VALUE).toLocaleString()}` : "$-";
 
                     let contractorBusinessName = record.CONTRATOR_BUSINESS_NAME?.trim() || "";
                     let contractorHumanName = record.CONTRACTOR_NAME?.trim() || "";
-                    
 
-                    // Use CONTRATOR_BUSINESS_NAME if available; otherwise, fall back to CONTRACTOR
-                    // let contractorName = record.CONTRATOR_BUSINESS_NAME?.trim() || record.CONTRACTOR_NAME?.trim() || '-';
+                    // Escape apostrophes for JS string literal in onclick
+                    function jsEscape(str) {
+                        return (str || "").replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+                    }
+
                     let contractorLink = contractorBusinessName !== '-'
-                        ? `<a href="#" class="contractor-link" data-bs-toggle="modal" data-bs-target="#contractorModal" onclick="fetchContractorDetails('${contractorBusinessName}', '${contractorHumanName}')">${contractorBusinessName}</a>`
+                        ? `<a href="#" class="contractor-link" data-bs-toggle="modal" data-bs-target="#contractorModal" onclick="fetchContractorDetails('${jsEscape(contractorBusinessName)}', '${jsEscape(contractorHumanName)}')">${contractorBusinessName}</a>`
                         : '-';
 
                     // Determine subtype icon with tooltip
@@ -237,8 +268,19 @@
                     let highlightedDescription = highlightMatch(record.WORK_DESCRIPTION || 'No description', searchQuery);
                     let highlightedAddress = highlightMatch(addressCleaned, addressQuery);
 
+                    // Highlight Permit Number if search matches permit number pattern
+                    let permitIdDisplay = record.PERMIT_ID || 'N/A';
+                    if (searchQuery && searchPattern.test(searchQuery)) {
+                        permitIdDisplay = highlightMatch(permitIdDisplay, searchQuery);
+                    }
+
                     // Construct the ArcGIS API link for the permit ID
                     const permitApiUrl = `https://services3.arcgis.com/dty2kHktVXHrqO8i/arcgis/rest/services/Building_Permits/FeatureServer/0/query?where=PERMIT_ID+%3D+%27${encodeURIComponent(record.PERMIT_ID)}%27&objectIds=&resultType=none&outFields=*&returnIdsOnly=false&returnUniqueIdsOnly=false&returnCountOnly=false&returnDistinctValues=false&cacheHint=false&collation=&orderByFields=FILE_DATE+DESC&groupByFieldsForStatistics=&outStatistics=&having=&resultOffset=&resultRecordCount=&sqlFormat=none&f=html&token=`;
+
+                    // Format fees paid
+                    let feesPaid = (typeof record.TOTAL_FEES_PAID === "number" && !isNaN(record.TOTAL_FEES_PAID))
+                        ? `$${record.TOTAL_FEES_PAID.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}`
+                        : "$-";
 
                     container.innerHTML += `
                         <div class="card mb-3">
@@ -257,11 +299,19 @@
                             </div>
 
                             <!-- Bottom section (Permit Info) -->
-                            <div class="card-footer bg-light">
-                                <small class="text-muted">
+                            <div class="card-footer bg-light d-flex flex-wrap align-items-center justify-content-between">
+                                <small class="text-muted flex-grow-1">
                                     ${subtypeIcon} Permit 
-                                    <a href="${permitApiUrl}" target="_blank" class="permit-link">${record.PERMIT_ID || 'N/A'}</a> | 
+                                    <a href="${permitApiUrl}" target="_blank" class="permit-link">${permitIdDisplay}</a> | 
                                     Filed ${new Date(record.FILE_DATE + (new Date().getTimezoneOffset() * 60000)).toLocaleDateString("en-US", { timeZone: "America/New_York"})}
+                                </small>
+                                <small class="text-muted ms-2 fees-paid d-none d-md-inline" style="white-space:nowrap;">
+                                    Fees Paid: ${feesPaid}
+                                    ${
+                                        (typeof record.TOTAL_FEES_PAID === "number" && typeof record.JOB_VALUE === "number" && record.JOB_VALUE > 0)
+                                            ? ` (${((record.TOTAL_FEES_PAID / record.JOB_VALUE) * 100).toFixed(1)}%)`
+                                            : ""
+                                    }
                                 </small>
                             </div>
                         </div>`;
@@ -305,11 +355,12 @@
             // Reset all inputs and selects
             document.getElementById("searchInput").value = "";
             document.getElementById("addressSearchInput").value = "";
+            document.getElementById("contractorNameInput").value = ""; // NEW FIELD
             document.getElementById("categoryFilter").selectedIndex = 0;
             document.getElementById("neighborhoodFilter").selectedIndex = 0;
             document.getElementById("subtypeFilter").selectedIndex = 0;
-            document.getElementById("jobValueMin").value = "01/01/2000";
-            document.getElementById("jobValueMax").value = today;
+            document.getElementById("jobValueMin").value = "";
+            document.getElementById("jobValueMax").value = "";
             document.getElementById("yearMin").value = "";
             document.getElementById("yearMax").value = "";
 
@@ -329,6 +380,7 @@
             const subtype = document.getElementById("subtypeFilter").value;
             const searchQuery = document.getElementById("searchInput").value.trim();
             const addressQuery = document.getElementById("addressSearchInput").value.trim();
+            const contractorNameQuery = document.getElementById("contractorNameInput").value.trim(); // NEW FIELD
             const sortOrder = document.getElementById("sortOrder").value;
             const jobValueMin = document.getElementById("jobValueMin").value;
             const jobValueMax = document.getElementById("jobValueMax").value;
@@ -341,6 +393,7 @@
             if (subtype) filters.push(`Type: ${subtype}`);
             if (searchQuery) filters.push(`Work: "${searchQuery}"`);
             if (addressQuery) filters.push(`Address: "${addressQuery}"`);
+            if (contractorNameQuery) filters.push(`Contractor: "${contractorNameQuery}"`); // NEW FIELD
             if (jobValueMin) filters.push(`Job Value Min: $${jobValueMin}`);
             if (jobValueMax) filters.push(`Job Value Max: $${jobValueMax}`);
             if (yearMin !== '2000-01-01' && yearMin !== "") filters.push(`From Date: ${yearMin}`);
@@ -419,6 +472,7 @@
             // Apply the event listener to all search inputs
             document.getElementById("addressSearchInput").addEventListener("keypress", handleEnterKey);
             document.getElementById("searchInput").addEventListener("keypress", handleEnterKey);
+            document.getElementById("contractorNameInput").addEventListener("keypress", handleEnterKey); // NEW FIELD
 
             let searchButton = document.querySelector(".btn-primary"); // Select the search button
             // Add event listener to all input fields inside the navbar
@@ -470,12 +524,13 @@
                 const subtype = document.getElementById("subtypeFilter").value;
                 const searchQuery = document.getElementById("searchInput").value.trim();
                 const addressQuery = document.getElementById("addressSearchInput").value.trim();
+                const contractorNameQuery = document.getElementById("contractorNameInput").value.trim(); // NEW FIELD
                 const jobValueMin = document.getElementById("jobValueMin").value;
                 const jobValueMax = document.getElementById("jobValueMax").value;
                 const yearMin = document.getElementById("yearMin").value;
                 const yearMax = document.getElementById("yearMax").value;
 
-                if (category || neighborhood || subtype || searchQuery || addressQuery || jobValueMin || jobValueMax || (yearMin !== '01/01/2000' && yearMin !== "") || yearMax ) {
+                if (category || neighborhood || subtype || searchQuery || addressQuery || contractorNameQuery || jobValueMin || jobValueMax || (yearMin !== '01/01/2000' && yearMin !== "") || yearMax ) {
                     console.log("Filters active");
                     filterIndicator.style.display = "block"; // Show dot
                 } else {
@@ -502,7 +557,7 @@
             }
 
 
-        async function logSearchQuery(filterCategory, filterNeighborhood, filterSubtype, searchQuery, addressQuery, sortOrder, resultOffset, append) {
+        async function logSearchQuery(filterCategory, filterNeighborhood, filterSubtype, searchQuery, addressQuery, contractorNameQuery, sortOrder, resultOffset, append) {
                 const logData = {
                     records: [{
                         fields: {
@@ -515,6 +570,7 @@
                             "Subtype": filterSubtype || "",
                             "Search Query": searchQuery.replace(/%/g, "").trim() || "",
                             "Address Query": addressQuery.replace(/%/g, "").trim() || "",
+                            "Contractor Name Query": contractorNameQuery.replace(/%/g, "").trim() || "", // NEW FIELD
                             "Sort Order": sortOrder || "",
                             "Result Offset": resultOffset, // Log pagination offset
                             "Append": append // Log append status
@@ -567,9 +623,12 @@
                     return;
                 }
 
+                // Escape single quotes for SQL
+                const safeBusinessName = contractorBusinessName.replace(/'/g, "''");
+
                 const apiUrl = "https://services3.arcgis.com/dty2kHktVXHrqO8i/arcgis/rest/services/Active_Contractor_Registrations/FeatureServer/0/query";
                 const params = new URLSearchParams({
-                    where: `BUSINESS_NAME='${contractorBusinessName.replace(/'/g, "''")}'`,
+                    where: `BUSINESS_NAME='${safeBusinessName}'`,
                     outFields: "B1_ALT_ID,B1_ADDRESS1,B1_ADDRESS2,B1_CITY,B1_STATE,B1_ZIP,B1_PHONE1,RRP_CERTIFICATION_NO",
                     f: "json"
                 });
@@ -641,9 +700,9 @@
                         </select>
                     </div>
                     <div class="input-group me-2 mb-2">
-                        <input type="text" id="searchInput" class="form-control" placeholder="Search work description">
+                        <input type="text" id="searchInput" class="form-control" placeholder="Search work description or Permit Number">
                         <a href="#" data-bs-toggle="modal" data-bs-target="#wildcardHelpModal" class="btn btn-outline-secondary" title="Search Help">?</a>
-</div>
+                    </div>
                     <select id="neighborhoodFilter" class="form-select me-2 mb-2" onchange="fetchData()">
                         <option value="">All Neighborhoods</option>
                         <option value="Bellaire-Puritas">Bellaire-Puritas</option>
@@ -697,6 +756,11 @@
                     </select>
                     <div class="input-group me-2 mb-2">
                         <input id="addressSearchInput" type="text" class="form-control" placeholder="Search Address" onchange="resetAndFetchData()">
+                        <a href="#" data-bs-toggle="modal" data-bs-target="#wildcardHelpModal" class="btn btn-outline-secondary" title="Search Help">?</a>
+                    </div>
+                    <!-- NEW CONTRACTOR NAME SEARCH FIELD -->
+                    <div class="input-group me-2 mb-2">
+                        <input type="text" id="contractorNameInput" class="form-control" placeholder="Search Contractor Name">
                         <a href="#" data-bs-toggle="modal" data-bs-target="#wildcardHelpModal" class="btn btn-outline-secondary" title="Search Help">?</a>
                     </div>
                     <div class="d-flex gap-2 me-2 mb-2">
