@@ -341,6 +341,7 @@
         }
 
         function searchAndCloseNav() {
+                updateUrlFromFilters();
                 fetchData(); // Run the search query
 
                 // Close the navbar properly
@@ -479,6 +480,69 @@
             document.querySelectorAll("#filterMenu input, #filterMenu select").forEach(element => {
                 element.addEventListener("keypress", handleEnterKey);
             });
+
+            // --- URL PARAMS: Parse and set filter values if present ---
+            function setFiltersFromUrl() {
+                const params = new URLSearchParams(window.location.search);
+
+                function setValue(id, val) {
+                    if (val !== null && val !== undefined) {
+                        const el = document.getElementById(id);
+                        if (el) el.value = val;
+                    }
+                }
+
+                setValue("searchInput", params.get("search") || "");
+                setValue("addressSearchInput", params.get("address") || "");
+                setValue("contractorNameInput", params.get("contractor") || "");
+                setValue("categoryFilter", params.get("category") || "");
+                setValue("neighborhoodFilter", params.get("neighborhood") || "");
+                setValue("subtypeFilter", params.get("subtype") || "");
+                setValue("jobValueMin", params.get("jobValueMin") || "");
+                setValue("jobValueMax", params.get("jobValueMax") || "");
+                setValue("yearMin", params.get("yearMin") || "");
+                setValue("yearMax", params.get("yearMax") || "");
+                setValue("sortOrder", params.get("sort") || "FILE_DATE DESC");
+            }
+
+            setFiltersFromUrl();
+
+            // --- Optionally, update URL when search is performed ---
+            function updateUrlFromFilters() {
+                const params = new URLSearchParams();
+                function add(id, key, opts = {}) {
+                    const val = document.getElementById(id)?.value;
+                    if (val && (!opts.skipIfDefault || val !== opts.default)) {
+                        params.set(key, val);
+                    }
+                }
+                add("searchInput", "search");
+                add("addressSearchInput", "address");
+                add("contractorNameInput", "contractor");
+                add("categoryFilter", "category");
+                add("neighborhoodFilter", "neighborhood");
+                add("subtypeFilter", "subtype");
+                add("jobValueMin", "jobValueMin");
+                add("jobValueMax", "jobValueMax");
+                add("yearMin", "yearMin");
+                add("yearMax", "yearMax");
+                // Only add sort param if not the default
+                add("sortOrder", "sort", { skipIfDefault: true, default: "FILE_DATE DESC" });
+                const url = window.location.pathname + (params.toString() ? "?" + params.toString() : "");
+                window.history.replaceState({}, "", url);
+            }
+
+            // Call updateUrlFromFilters() whenever a search is performed
+            window.searchAndCloseNav = function() {
+                updateUrlFromFilters();
+                fetchData();
+                // ...existing code for closing navbar...
+                let filterMenu = document.getElementById("filterMenu");
+                let bsCollapse = new bootstrap.Collapse(filterMenu, {
+                    toggle: false
+                });
+                bsCollapse.hide();
+            };
 
             fetchData();
             window.addEventListener("scroll", handleScroll);
