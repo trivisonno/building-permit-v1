@@ -96,7 +96,7 @@
             const filterSubtype = document.getElementById("subtypeFilter").value;
             const searchQuery = `${document.getElementById("searchInput").value.trim()}`;
             const addressQuery = document.getElementById("addressSearchInput").value.trim().replace(/\s+/g, "%");
-            const contractorNameQuery = document.getElementById("contractorNameInput").value.trim().replace(/\s+/g, "%"); // NEW FIELD
+            const contractorNameQuery = document.getElementById("contractorNameInput").value.trim(); // NEW FIELD
             const sortOrder = document.getElementById("sortOrder").value; // Get selected sort order
             const jobValueMin = document.getElementById("jobValueMin").value;
             const jobValueMax = document.getElementById("jobValueMax").value;
